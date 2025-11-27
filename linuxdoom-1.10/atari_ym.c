@@ -637,6 +637,7 @@ static void ymmusic_dump(unsigned char *data, FILE *f)
         fprintf(f, "Delay %d\n", delay);
     }
 finish:
+    return;
 }
 
 static void ymmusic_dump_file(unsigned char *data)

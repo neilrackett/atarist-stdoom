@@ -6,7 +6,7 @@
 #
 #CC=  gcc  # gcc or g++
 
-CFLAGS=-O3 -Wall -DNORMALUNIX -DLINUX -D__BIG_ENDIAN__ -DUSEASM -mfastcall
+CFLAGS=-O3 -Wall -DNORMALUNIX -DLINUX -D__BIG_ENDIAN__ -DUSEASM -mfastcall -std=c99 -fasm
 CFLAGS20=$(CFLAGS) -m68020-60 -mtune=68020 -msoft-float
 CFLAGS2F=$(CFLAGS) -m68020-60 -mtune=68020 -m68881
 LDFLAGS= -Wl,-Map=$@.map
@@ -93,13 +93,13 @@ clean:
 	rm -f $(O)/stdoom.tos $(O)/stdoom20.tos $(O)/stdoom2f.tos $(O)/*.o $(O)/*.map
 
 $(O)/stdoom.tos:	$(OBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) $(OBJS) -o $@ $(LDLIBS)
+	$(CC) $(filter-out -mfastcall,$(CFLAGS)) $(OBJS) -o $@ $(LDLIBS)
 
 $(O)/stdoom20.tos:	$(OBJS20)
-	$(CC) $(CFLAGS20) $(LDFLAGS) $(OBJS20) -o $@ $(LDLIBS20)
+	$(CC) $(filter-out -mfastcall,$(CFLAGS20)) $(OBJS20) -o $@ $(LDLIBS20)
 
 $(O)/stdoom2f.tos:	$(OBJS2F)
-	$(CC) $(CFLAGS2F) $(LDFLAGS) $(OBJS2F) -o $@ $(LDLIBS2F)
+	$(CC) $(filter-out -mfastcall,$(CFLAGS2F)) $(OBJS2F) -o $@ $(LDLIBS2F)
 
 $(O)/%.2f.o:	%.c
 	$(CC) $(CPPFLAGS) $(CFLAGS2F) -c $< -o $@

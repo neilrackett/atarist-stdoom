@@ -1,6 +1,8 @@
 #include <mint/osbind.h>
 #include <mint/cookie.h>
 
+#pragma GCC diagnostic ignored "-Wunused-value"
+
 // This function is mainly for suppressing mintlib's CPU and FPU detection, but we can also print some 
 void _checkcpu() {
     long cookie = 0;
