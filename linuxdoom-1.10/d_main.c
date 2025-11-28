@@ -670,6 +670,13 @@ void IdentifyVersion (void)
 	return;
     }
 
+    if ( !access (doom1wad,R_OK) )
+    {
+      gamemode = shareware;
+      D_AddFile (doom1wad);
+      return;
+    }
+		
     if ( !access (doom2fwad,R_OK) )
     {
 	gamemode = commercial;
@@ -713,13 +720,6 @@ void IdentifyVersion (void)
     {
       gamemode = registered;
       D_AddFile (doomwad);
-      return;
-    }
-
-    if ( !access (doom1wad,R_OK) )
-    {
-      gamemode = shareware;
-      D_AddFile (doom1wad);
       return;
     }
 
