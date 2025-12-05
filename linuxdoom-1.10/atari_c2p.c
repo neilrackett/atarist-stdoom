@@ -7,6 +7,9 @@
 #include "z_zone.h"
 #include "doomdef.h"
 
+/* Some environments don't define u_int32_t, but do define uint32_t. */
+typedef uint32_t u_int32_t;
+
 // Subset of DOOM colors to use for Atari palette
 const unsigned char subset_lorez[] = 
     {0, 90, 101, 241, 202, 252, 38, 219, 144, 136, 158, 120, 72, 58, 249, 4};
