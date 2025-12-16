@@ -4,7 +4,7 @@
 #
 # $Log:$
 #
-#CC=  gcc  # gcc or g++
+CC = m68k-atari-mint-gcc
 
 CFLAGS=-O3 -Wall -DNORMALUNIX -DLINUX -D__BIG_ENDIAN__ -DUSEASM -std=c99 -fasm
 # -mfastcall with the filter-out below builds, but immedialy crashes :-(
