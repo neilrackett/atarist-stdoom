@@ -399,15 +399,43 @@ void save_tt_palette(unsigned short *palette) {
 
 void set_st_doom_palette(const unsigned char *colors) {
     unsigned short stpalette[16];
-    (void)colors;
     short res = Getrez();
+    int tint = 0;
+    if ((res == 0 || res == 1) && colors) {
+        long sum_r = 0;
+        long sum_g = 0;
+        long sum_b = 0;
+        for (int i = 0; i < 256; i++) {
+            sum_r += colors[3 * i];
+            sum_g += colors[3 * i + 1];
+            sum_b += colors[3 * i + 2];
+        }
+        int avg_r = (int)(sum_r / 256);
+        int avg_g = (int)(sum_g / 256);
+        int avg_b = (int)(sum_b / 256);
+        int red_bias = avg_r - (avg_g + avg_b) / 2;
+        if (red_bias < 0) red_bias = 0;
+        if (red_bias > 128) red_bias = 128;
+        tint = red_bias;
+    }
     for (int i = 0; i < 16; i++) {
         unsigned char grey = (unsigned char)((i * 255) / 15);
         if (res == 1 && i < 4) {
             static const unsigned char mid_greys[4] = {0, 85, 170, 255};
             grey = mid_greys[i];
         }
-        stpalette[i] = stcolor(grey, grey, grey);
+        int r = grey;
+        int g = grey;
+        int b = grey;
+        if ((res == 0 || res == 1) && tint > 0) {
+            r = grey + (tint * (255 - grey)) / 128;
+            g = grey - (tint * grey) / 256;
+            b = grey - (tint * grey) / 256;
+            if (r > 255) r = 255;
+            if (g < 0) g = 0;
+            if (b < 0) b = 0;
+        }
+        stpalette[i] = stcolor((unsigned char)r, (unsigned char)g, (unsigned char)b);
     }
     install_st_palette(stpalette);
 }
