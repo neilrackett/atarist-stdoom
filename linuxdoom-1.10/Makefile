@@ -89,6 +89,8 @@ OBJS=				\
 OBJS20=$(OBJS:%.o=%.20.o)
 OBJS2F=$(OBJS:%.o=%.2f.o)
 
+.DEFAULT_GOAL := $(O)/stdoom.tos
+
 all:	 $(O)/stdoom.tos $(O)/stdoom20.tos $(O)/stdoom2f.tos
 
 clean:
