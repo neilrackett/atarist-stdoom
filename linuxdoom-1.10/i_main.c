@@ -38,7 +38,7 @@ main
     myargc = argc; 
     myargv = argv; 
  
-    Setscreen(-1, -1, 0);
+    Setscreen((void *)-1, (void *)-1, 0);
     
     D_DoomMain (); 
 
