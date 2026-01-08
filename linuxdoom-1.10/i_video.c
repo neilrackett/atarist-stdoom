@@ -279,6 +279,7 @@ void I_FinishUpdate (void)
     static int	lasttic;
     int		tics;
     int		i;
+    boolean	drawview;
     // UNUSED static unsigned char *bigscreen=0;
 
     // draws little dots on the bottom of the screen
@@ -297,7 +298,20 @@ void I_FinishUpdate (void)
     
     }
 
-    c2p_screen(st_screen, screens[0]);
+    drawview = (gamestate == GS_LEVEL && !automapactive && gametic);
+    if (drawview) {
+        c2p_screen(st_screen, screens[0]);
+    } else if (dirtybox[BOXRIGHT] >= dirtybox[BOXLEFT]
+        && dirtybox[BOXTOP] >= dirtybox[BOXBOTTOM]) {
+        c2p_screen_rect(
+            st_screen,
+            screens[0],
+            dirtybox[BOXBOTTOM],
+            dirtybox[BOXTOP] + 1,
+            dirtybox[BOXLEFT],
+            dirtybox[BOXRIGHT] + 1
+        );
+    }
     c2p_statusbar(st_screen, screens[0], st_dirtybox[BOXBOTTOM], st_dirtybox[BOXTOP] + 1, st_dirtybox[BOXLEFT], st_dirtybox[BOXRIGHT] + 1);
 }
 

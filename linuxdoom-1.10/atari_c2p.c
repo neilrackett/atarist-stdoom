@@ -542,6 +542,36 @@ void c2p_screen(unsigned char *out, const unsigned char *in) {
     c2p_screen_drawfunc(out, in);
 }
 
+void c2p_screen_rect(unsigned char *out, const unsigned char *in, short y_begin, short y_end, short x_begin, short x_end) {
+    if (y_end <= 0 || x_end <= 0)
+        return;
+    if (y_begin < 0)
+        y_begin = 0;
+    if (y_end > SCREENHEIGHT)
+        y_end = SCREENHEIGHT;
+    if (x_begin < 0)
+        x_begin = 0;
+    if (x_end > SCREENWIDTH)
+        x_end = SCREENWIDTH;
+    if (x_end <= x_begin || y_end <= y_begin)
+        return;
+
+    x_begin &= ~15;
+    x_end = (x_end + 15) & ~15;
+    if (x_end > SCREENWIDTH)
+        x_end = SCREENWIDTH;
+    if (x_end <= x_begin)
+        return;
+
+    out += y_begin * 160 + x_begin / 2;
+    in += y_begin * 320 + x_begin;
+    for (short line = y_begin; line < y_end; line++ ) {
+        c2p_1x_lorez(out, in, x_end - x_begin, c2p_table[line & 3]);
+        out += 160;
+        in += 320;
+    }
+}
+
 void c2p_statusbar(unsigned char *out, const unsigned char *in, short y_begin, short y_end, short x_begin, short x_end) {
     if (y_end <= 0 || x_end <= 0)
         return;

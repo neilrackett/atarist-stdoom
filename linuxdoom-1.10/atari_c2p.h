@@ -3,6 +3,7 @@
 
 void init_c2p_table();
 void c2p_screen(unsigned char *out, const unsigned char *in);
+void c2p_screen_rect(unsigned char *out, const unsigned char *in, short y_begin, short y_end, short x_begin, short x_end);
 void c2p_statusbar(unsigned char *out, const unsigned char *in, short y_begin, short y_end, short x_begin, short x_end);
 extern void (*set_doom_palette)(const unsigned char *colors);
 void set_st_palette_index(int index);

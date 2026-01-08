@@ -26,6 +26,7 @@ rcsid[] = "$Id: m_bbox.c,v 1.1 1997/02/03 22:45:10 b1 Exp $";
 #include <mint/osbind.h>
 #include <mint/sysvars.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -158,9 +159,15 @@ void I_EndRead(void)
 
 byte*	I_AllocLow(int length)
 {
+    static void* low_mem_base;
+    const size_t align = 16;
     byte*	mem;
-        
-    mem = (byte *)malloc (length);
+    uintptr_t	aligned;
+
+    low_mem_base = malloc (length + align - 1);
+    mem = (byte *)low_mem_base;
+    aligned = ((uintptr_t)mem + (align - 1)) & ~(uintptr_t)(align - 1);
+    mem = (byte *)aligned;
     memset (mem,0,length);
     return mem;
 }

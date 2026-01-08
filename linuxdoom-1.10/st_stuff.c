@@ -271,6 +271,7 @@ static player_t*	plyr;
 
 // ST_Start() has just been called
 static boolean		st_firsttime;
+static unsigned int	st_lastdrawtic;
 
 // used to execute ST_Init() only once
 static int		veryfirsttime = 1;
@@ -1105,6 +1106,8 @@ void ST_diffDraw(void)
     ST_drawWidgets(false);
 }
 
+#define ST_DRAW_INTERVAL 2
+
 void ST_Drawer (boolean fullscreen, boolean refresh)
 {
   
@@ -1115,9 +1118,18 @@ void ST_Drawer (boolean fullscreen, boolean refresh)
     ST_doPaletteStuff();
 
     // If just after ST_Start(), refresh all
-    if (st_firsttime) ST_doRefresh();
+    if (st_firsttime) {
+	ST_doRefresh();
+	st_lastdrawtic = st_clock;
+    }
     // Otherwise, update as little as possible
-    else ST_diffDraw();
+    else
+    {
+	if ((unsigned int)(st_clock - st_lastdrawtic) < ST_DRAW_INTERVAL)
+	    return;
+	st_lastdrawtic = st_clock;
+	ST_diffDraw();
+    }
 
 }
 

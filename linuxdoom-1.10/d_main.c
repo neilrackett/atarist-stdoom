@@ -119,6 +119,7 @@ boolean		autostart;
 FILE*		debugfile;
 
 boolean		advancedemo;
+static boolean	st_skiprender;
 
 
 
@@ -210,6 +211,11 @@ void D_Display (void)
 
     if (nodrawers)
 	return;                    // for comparative timing / profiling
+    if (st_skiprender && gamestate == GS_LEVEL && !automapactive)
+    {
+	st_skiprender = false;
+	return;
+    }
 		
     redrawsbar = false;
     
@@ -389,10 +395,13 @@ void D_DoomLoop (void)
 	    G_Ticker ();
 	    gametic++;
 	    maketic++;
+	    st_skiprender = false;
 	}
 	else
 	{
+	    int oldtic = gametic;
 	    TryRunTics (); // will run at least one tic
+	    st_skiprender = (gametic - oldtic) > 1;
 	}
 		
 	S_UpdateSounds (players[consoleplayer].mo);// move positional sounds
