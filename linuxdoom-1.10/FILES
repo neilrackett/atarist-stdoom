@@ -10,8 +10,6 @@ total 1258
 -rw-r--r--   1 b1       prog        25287 Jan 18 15:07 d_main.c
 -rw-r--r--   1 b1       prog        15586 Jan 18 15:07 d_net.c
 -rw-r--r--   1 b1       prog          744 Jan 18 15:07 defs.inc
--rw-r--r--   1 b1       prog         3569 Jan 18 15:07 dither.c
--rw-r--r--   1 b1       prog          355 Jan 18 15:07 dither.h
 -rw-r--r--   1 b1       prog         4234 Jan 18 15:07 doomdata.h
 -rw-r--r--   1 b1       prog        32779 Jan 18 15:07 doomdef.h
 -rw-r--r--   1 b1       prog          192 Jan 18 15:07 drcoord.h

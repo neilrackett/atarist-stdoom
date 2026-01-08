@@ -19,8 +19,6 @@ const unsigned char subset_hirez[] =
     {0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 const unsigned char *subset;
 
-static const int c2p_use_dither = 0;
-
 // Keep in sync with st_stuff.c
 #define ST_STARTREDPALS 1
 #define ST_NUMREDPALS 8
@@ -47,29 +45,6 @@ static void build_greyscale_weights_lorez(const unsigned char *colors) {
         const unsigned char *c = &colors[3 * i];
         int luma = (c[0] * 30 + c[1] * 59 + c[2] * 11 + 50) / 100;
         int level = luma / 17;
-        int rem = luma % 17;
-        int w_hi = 0;
-        if (level >= 15) {
-            level = 15;
-            rem = 0;
-        } else {
-            w_hi = (rem * 16 + 8) / 17;
-        }
-        int w_lo = 16 - w_hi;
-        unsigned char *weights = mix_weights_lorez[i];
-        for (int j = 0; j < 16; j++) weights[j] = 0;
-        weights[level] = (unsigned char)w_lo;
-        if (w_hi && level < 15) {
-            weights[level + 1] = (unsigned char)w_hi;
-        }
-    }
-}
-
-static void build_greyscale_weights_lorez_nodither(const unsigned char *colors) {
-    for (int i = 0; i < 256; i++) {
-        const unsigned char *c = &colors[3 * i];
-        int luma = (c[0] * 30 + c[1] * 59 + c[2] * 11 + 50) / 100;
-        int level = luma / 17;
         if (level > 15) level = 15;
         unsigned char *weights = mix_weights_lorez[i];
         for (int j = 0; j < 16; j++) weights[j] = 0;
@@ -85,29 +60,6 @@ static void build_greyscale_weights_midrez(const unsigned char *colors) {
         const unsigned char *c = &colors[3 * i];
         int luma = (c[0] * 30 + c[1] * 59 + c[2] * 11 + 50) / 100;
         int level = luma / 85;
-        int rem = luma % 85;
-        int w_hi = 0;
-        if (level >= 3) {
-            level = 3;
-            rem = 0;
-        } else {
-            w_hi = (rem * 16 + 42) / 85;
-        }
-        int w_lo = 16 - w_hi;
-        unsigned char *weights = mix_weights_midrez[i];
-        for (int j = 0; j < 4; j++) weights[j] = 0;
-        weights[level] = (unsigned char)w_lo;
-        if (w_hi && level < 3) {
-            weights[level + 1] = (unsigned char)w_hi;
-        }
-    }
-}
-
-static void build_greyscale_weights_midrez_nodither(const unsigned char *colors) {
-    for (int i = 0; i < 256; i++) {
-        const unsigned char *c = &colors[3 * i];
-        int luma = (c[0] * 30 + c[1] * 59 + c[2] * 11 + 50) / 100;
-        int level = luma / 85;
         if (level > 3) level = 3;
         unsigned char *weights = mix_weights_midrez[i];
         for (int j = 0; j < 4; j++) weights[j] = 0;
@@ -115,273 +67,14 @@ static void build_greyscale_weights_midrez_nodither(const unsigned char *colors)
     }
 }
 
-static unsigned char mix_weights_hirez[256][2] = {
-{ 16, 0,}, // 0: 0.000000
-{ 16, 0,}, // 1: 3.162877
-{ 16, 0,}, // 2: 1.972921
-{ 13, 3,}, // 3: 3.023968
-{ 0, 16,}, // 4: 0.000000
-{ 15, 1,}, // 5: 2.532063
-{ 16, 0,}, // 6: 2.244976
-{ 16, 0,}, // 7: 1.103170
-{ 16, 0,}, // 8: 0.612999
-{ 14, 2,}, // 9: 2.950513
-{ 15, 1,}, // 10: 3.628078
-{ 15, 1,}, // 11: 2.962386
-{ 16, 0,}, // 12: 2.260143
-{ 13, 3,}, // 13: 4.352364
-{ 14, 2,}, // 14: 3.923292
-{ 14, 2,}, // 15: 3.834948
-{ 4, 12,}, // 16: 9.109753
-{ 5, 11,}, // 17: 9.462293
-{ 5, 11,}, // 18: 9.766668
-{ 6, 10,}, // 19: 9.968747
-{ 7, 9,}, // 20: 10.500564
-{ 7, 9,}, // 21: 10.161597
-{ 8, 8,}, // 22: 10.842706
-{ 8, 8,}, // 23: 10.716986
-{ 9, 7,}, // 24: 10.545033
-{ 9, 7,}, // 25: 10.821122
-{ 10, 6,}, // 26: 10.660322
-{ 10, 6,}, // 27: 10.538860
-{ 11, 5,}, // 28: 10.584070
-{ 11, 5,}, // 29: 10.591230
-{ 11, 5,}, // 30: 10.575039
-{ 12, 4,}, // 31: 10.432224
-{ 12, 4,}, // 32: 10.136872
-{ 12, 4,}, // 33: 10.134342
-{ 13, 3,}, // 34: 9.705795
-{ 13, 3,}, // 35: 9.699158
-{ 13, 3,}, // 36: 9.314177
-{ 13, 3,}, // 37: 9.354319
-{ 14, 2,}, // 38: 8.745334
-{ 14, 2,}, // 39: 8.538713
-{ 14, 2,}, // 40: 8.107565
-{ 14, 2,}, // 41: 8.077693
-{ 15, 1,}, // 42: 7.717675
-{ 15, 1,}, // 43: 7.339993
-{ 15, 1,}, // 44: 6.622275
-{ 16, 0,}, // 45: 6.227608
-{ 16, 0,}, // 46: 5.420531
-{ 16, 0,}, // 47: 5.026935
-{ 1, 15,}, // 48: 4.700754
-{ 2, 14,}, // 49: 5.661571
-{ 2, 14,}, // 50: 6.486069
-{ 3, 13,}, // 51: 7.524214
-{ 3, 13,}, // 52: 7.910698
-{ 3, 13,}, // 53: 8.952188
-{ 4, 12,}, // 54: 9.728190
-{ 4, 12,}, // 55: 10.216728
-{ 5, 11,}, // 56: 11.440166
-{ 5, 11,}, // 57: 11.134138
-{ 6, 10,}, // 58: 11.076385
-{ 6, 10,}, // 59: 10.948090
-{ 7, 9,}, // 60: 10.764825
-{ 7, 9,}, // 61: 10.778378
-{ 8, 8,}, // 62: 10.479200
-{ 8, 8,}, // 63: 10.468348
-{ 9, 7,}, // 64: 9.695905
-{ 9, 7,}, // 65: 9.070922
-{ 10, 6,}, // 66: 8.700906
-{ 10, 6,}, // 67: 8.142102
-{ 10, 6,}, // 68: 8.179445
-{ 11, 5,}, // 69: 7.165587
-{ 11, 5,}, // 70: 7.101255
-{ 12, 4,}, // 71: 6.687458
-{ 12, 4,}, // 72: 6.140609
-{ 13, 3,}, // 73: 6.086236
-{ 13, 3,}, // 74: 4.998869
-{ 13, 3,}, // 75: 4.571978
-{ 14, 2,}, // 76: 4.566504
-{ 14, 2,}, // 77: 3.736165
-{ 14, 2,}, // 78: 4.061320
-{ 15, 1,}, // 79: 3.359486
-{ 1, 15,}, // 80: 3.154431
-{ 2, 14,}, // 81: 2.270905
-{ 3, 13,}, // 82: 3.742738
-{ 3, 13,}, // 83: 2.498833
-{ 3, 13,}, // 84: 3.948201
-{ 4, 12,}, // 85: 2.407922
-{ 4, 12,}, // 86: 3.616925
-{ 5, 11,}, // 87: 2.033330
-{ 6, 10,}, // 88: 3.559891
-{ 6, 10,}, // 89: 2.388310
-{ 6, 10,}, // 90: 3.910947
-{ 7, 9,}, // 91: 2.900738
-{ 7, 9,}, // 92: 3.349602
-{ 8, 8,}, // 93: 2.373181
-{ 8, 8,}, // 94: 2.711676
-{ 9, 7,}, // 95: 3.064542
-{ 9, 7,}, // 96: 3.060956
-{ 10, 6,}, // 97: 3.840060
-{ 10, 6,}, // 98: 2.226325
-{ 11, 5,}, // 99: 3.688077
-{ 11, 5,}, // 100: 2.681853
-{ 11, 5,}, // 101: 3.276316
-{ 12, 4,}, // 102: 2.752042
-{ 12, 4,}, // 103: 2.174505
-{ 13, 3,}, // 104: 3.930553
-{ 13, 3,}, // 105: 2.131779
-{ 13, 3,}, // 106: 2.725150
-{ 14, 2,}, // 107: 3.527215
-{ 14, 2,}, // 108: 2.698863
-{ 14, 2,}, // 109: 2.882897
-{ 15, 1,}, // 110: 3.554518
-{ 15, 1,}, // 111: 2.826927
-{ 4, 12,}, // 112: 14.138620
-{ 5, 11,}, // 113: 13.178967
-{ 6, 10,}, // 114: 12.242190
-{ 7, 9,}, // 115: 11.329672
-{ 8, 8,}, // 116: 10.247314
-{ 9, 7,}, // 117: 9.438586
-{ 10, 6,}, // 118: 8.713874
-{ 10, 6,}, // 119: 8.222451
-{ 11, 5,}, // 120: 7.135536
-{ 12, 4,}, // 121: 6.360008
-{ 13, 3,}, // 122: 5.951371
-{ 13, 3,}, // 123: 5.143507
-{ 14, 2,}, // 124: 4.200910
-{ 15, 1,}, // 125: 4.289530
-{ 15, 1,}, // 126: 2.953075
-{ 16, 0,}, // 127: 2.164012
-{ 6, 10,}, // 128: 5.623372
-{ 7, 9,}, // 129: 5.132666
-{ 8, 8,}, // 130: 5.511966
-{ 8, 8,}, // 131: 5.082297
-{ 9, 7,}, // 132: 5.237485
-{ 9, 7,}, // 133: 5.121642
-{ 9, 7,}, // 134: 5.493481
-{ 10, 6,}, // 135: 4.845304
-{ 10, 6,}, // 136: 5.292644
-{ 11, 5,}, // 137: 4.566669
-{ 11, 5,}, // 138: 4.724578
-{ 12, 4,}, // 139: 4.687091
-{ 12, 4,}, // 140: 4.157088
-{ 13, 3,}, // 141: 4.846282
-{ 13, 3,}, // 142: 3.897707
-{ 13, 3,}, // 143: 3.956564
-{ 9, 7,}, // 144: 5.641809
-{ 10, 6,}, // 145: 5.458966
-{ 11, 5,}, // 146: 5.537491
-{ 11, 5,}, // 147: 5.270129
-{ 12, 4,}, // 148: 4.649210
-{ 13, 3,}, // 149: 4.487115
-{ 13, 3,}, // 150: 4.657611
-{ 14, 2,}, // 151: 3.779618
-{ 10, 6,}, // 152: 3.635238
-{ 11, 5,}, // 153: 4.154866
-{ 11, 5,}, // 154: 3.430387
-{ 12, 4,}, // 155: 3.887741
-{ 12, 4,}, // 156: 3.737777
-{ 13, 3,}, // 157: 3.395479
-{ 13, 3,}, // 158: 3.548160
-{ 14, 2,}, // 159: 3.637814
-{ 0, 16,}, // 160: 10.628353
-{ 4, 12,}, // 161: 11.262287
-{ 6, 10,}, // 162: 10.775217
-{ 8, 8,}, // 163: 10.476766
-{ 9, 7,}, // 164: 9.909468
-{ 11, 5,}, // 165: 9.357160
-{ 12, 4,}, // 166: 8.779848
-{ 13, 3,}, // 167: 8.150807
-{ 0, 16,}, // 168: 0.000000
-{ 2, 14,}, // 169: 5.630848
-{ 4, 12,}, // 170: 8.818243
-{ 5, 11,}, // 171: 11.774660
-{ 7, 9,}, // 172: 14.472336
-{ 8, 8,}, // 173: 16.744305
-{ 9, 7,}, // 174: 19.187151
-{ 10, 6,}, // 175: 21.260931
-{ 11, 5,}, // 176: 22.539795
-{ 12, 4,}, // 177: 20.917423
-{ 12, 4,}, // 178: 19.625549
-{ 12, 4,}, // 179: 18.424139
-{ 12, 4,}, // 180: 17.326004
-{ 13, 3,}, // 181: 16.103060
-{ 13, 3,}, // 182: 14.913567
-{ 13, 3,}, // 183: 13.833478
-{ 13, 3,}, // 184: 12.882592
-{ 14, 2,}, // 185: 11.307191
-{ 14, 2,}, // 186: 10.253874
-{ 14, 2,}, // 187: 9.347155
-{ 15, 1,}, // 188: 8.555857
-{ 15, 1,}, // 189: 7.435950
-{ 16, 0,}, // 190: 6.227608
-{ 16, 0,}, // 191: 5.026935
-{ 2, 14,}, // 192: 4.067422
-{ 4, 12,}, // 193: 5.951301
-{ 6, 10,}, // 194: 7.883518
-{ 7, 9,}, // 195: 9.822075
-{ 9, 7,}, // 196: 11.271643
-{ 11, 5,}, // 197: 13.057537
-{ 12, 4,}, // 198: 14.514785
-{ 13, 3,}, // 199: 15.818985
-{ 16, 0,}, // 200: 16.481758
-{ 16, 0,}, // 201: 14.168860
-{ 16, 0,}, // 202: 12.253104
-{ 16, 0,}, // 203: 10.404237
-{ 16, 0,}, // 204: 8.628445
-{ 16, 0,}, // 205: 6.933524
-{ 16, 0,}, // 206: 5.329669
-{ 16, 0,}, // 207: 3.830918
-{ 0, 16,}, // 208: 0.000000
-{ 1, 15,}, // 209: 4.941270
-{ 2, 14,}, // 210: 7.504269
-{ 3, 13,}, // 211: 9.569269
-{ 5, 11,}, // 212: 11.725086
-{ 5, 11,}, // 213: 13.692756
-{ 7, 9,}, // 214: 15.626595
-{ 7, 9,}, // 215: 17.146545
-{ 8, 8,}, // 216: 16.473553
-{ 8, 8,}, // 217: 16.144873
-{ 9, 7,}, // 218: 15.162672
-{ 10, 6,}, // 219: 14.916658
-{ 10, 6,}, // 220: 14.026222
-{ 11, 5,}, // 221: 13.782843
-{ 11, 5,}, // 222: 12.858162
-{ 11, 5,}, // 223: 12.400164
-{ 0, 16,}, // 224: 0.000000
-{ 0, 16,}, // 225: 3.278798
-{ 0, 16,}, // 226: 6.077520
-{ 0, 16,}, // 227: 8.711452
-{ 0, 16,}, // 228: 11.152089
-{ 0, 16,}, // 229: 13.354692
-{ 0, 16,}, // 230: 15.234977
-{ 0, 16,}, // 231: 16.481758
-{ 12, 4,}, // 232: 11.759201
-{ 12, 4,}, // 233: 11.289021
-{ 13, 3,}, // 234: 10.645083
-{ 13, 3,}, // 235: 9.944007
-{ 13, 3,}, // 236: 4.505016
-{ 14, 2,}, // 237: 3.818308
-{ 15, 1,}, // 238: 4.303171
-{ 15, 1,}, // 239: 3.484603
-{ 16, 0,}, // 240: 3.830918
-{ 16, 0,}, // 241: 3.127067
-{ 16, 0,}, // 242: 2.458153
-{ 16, 0,}, // 243: 1.829062
-{ 16, 0,}, // 244: 1.246780
-{ 16, 0,}, // 245: 0.722350
-{ 16, 0,}, // 246: 0.276893
-{ 16, 0,}, // 247: 0.000000
-{ 6, 10,}, // 248: 14.617802
-{ 3, 13,}, // 249: 13.213470
-{ 6, 10,}, // 250: 13.676251
-{ 9, 7,}, // 251: 21.175062
-{ 11, 5,}, // 252: 16.536200
-{ 12, 4,}, // 253: 12.386811
-{ 14, 2,}, // 254: 8.435212
-{ 10, 6,}, // 255: 7.343525
-};
+static unsigned char mix_weights_hirez[256][2];
 
-static unsigned char mix_weights_hirez_nodither[256][2];
-
-static void build_greyscale_weights_hirez_nodither(const unsigned char *colors) {
+static void build_greyscale_weights_hirez(const unsigned char *colors) {
     for (int i = 0; i < 256; i++) {
         const unsigned char *c = &colors[3 * i];
         int luma = (c[0] * 30 + c[1] * 59 + c[2] * 11 + 50) / 100;
         int level = luma >= 128 ? 1 : 0;
-        unsigned char *weights = mix_weights_hirez_nodither[i];
+        unsigned char *weights = mix_weights_hirez[i];
         weights[0] = 0;
         weights[1] = 0;
         weights[level] = 16;
@@ -489,56 +182,32 @@ void set_tt_doom_palette(const unsigned char *colors) {
     install_tt_palette(ttpalette);
 }
 
-// Find the ST palette color index to fill a pixel with according to given weights.
-short bayer4_color(const unsigned char *weights, short numcolors, short phase, short px) {
-    static unsigned char bayer[4][4] = {
-        {0,  8, 2,10},
-        {12, 4,14, 6},
-        { 3,11, 1, 9},
-        {15, 7,13, 5}
-    };
-
-    unsigned char bayer_lwb = 0, bayer_upb = 0;
-    short c;
-    for (c=0; c<numcolors; c++) {
-        bayer_upb += weights[c];
-        if (bayer[phase][px%4] >= bayer_lwb && bayer[phase][px%4] < bayer_upb) {
-            return c; // Search for color is finished.
+static unsigned char weights_to_index(const unsigned char *weights, short numcolors) {
+    unsigned char best = 0;
+    unsigned char best_weight = weights[0];
+    for (short i = 1; i < numcolors; i++) {
+        if (weights[i] > best_weight) {
+            best_weight = weights[i];
+            best = (unsigned char)i;
         }
-        bayer_lwb += weights[c];
     }
-    return -1;
+    return best;
 }
 
-
-/// @brief Computes a movep-compatible Bayer-dithered pixel given a set of mixing weights.
-/// @param weights An array of mixing weights, each weight corresponding to a palette color. Must sum up to 16.
-/// @param phase The vertical phase within the bayer pattern (0..3).
-/// @param px The pixel within the group of 8 pixels covered by a movep-DWORD (0..7).
-/// @return A DWORD that can be written into an Atari ST lo-res framebuffer using movep.l.
-unsigned long bayer4_lorez_pdata(const unsigned char *weights, short phase, short px) {
-    short c = bayer4_color(weights, 16, phase, px);
-    // Compute a pdata-compatible pixel representation.
+static unsigned long lorez_pixel_pdata(unsigned char color, short px) {
     unsigned long pdata = 0;
-    if (c & 1) pdata |= 0x01000000;
-    if (c & 2) pdata |= 0x00010000;
-    if (c & 4) pdata |= 0x00000100;
-    if (c & 8) pdata |= 0x00000001;
-    return pdata << (7-px);
+    if (color & 1) pdata |= 0x01000000;
+    if (color & 2) pdata |= 0x00010000;
+    if (color & 4) pdata |= 0x00000100;
+    if (color & 8) pdata |= 0x00000001;
+    return pdata << (7 - px);
 }
 
-/// @brief Computes a longword containing Bayer-dithered pixel given a set of mixing weights.
-/// @param weights An array of mixing weights, each weight corresponding to a palette color. Must sum up to 16.
-/// @param phase The vertical phase within the bayer pattern (0..3).
-/// @param px The pixel within the group of 16 pixels covered by a longword in midrez (0..15).
-/// @return A DWORD that can be written into an Atari ST mid-res framebuffer.
-unsigned long bayer4_midrez_pdata(const unsigned char *weights, short phase, short px) {
-    short c = bayer4_color(weights, 4, phase, px);
-    // Compute a midrez-compatible pixel representation.
-    unsigned long data = 0;
-    if (c & 1) data |= 0x00010000;
-    if (c & 2) data |= 0x00000001;
-    return data << (15-px);
+static unsigned long midrez_pixel_pdata(unsigned char color, short px) {
+    unsigned long pdata = 0;
+    if (color & 1) pdata |= 0x00010000;
+    if (color & 2) pdata |= 0x00000001;
+    return pdata << (15 - px);
 }
 
 static void c2p_1x_lorez(register unsigned char *out, const unsigned char *in, unsigned short pixels, unsigned long table[][8]);
@@ -600,23 +269,20 @@ void init_c2p_table() {
         install_palette = install_st_palette;
         save_palette = save_st_palette;
         set_doom_palette = set_st_doom_palette;
-        if (c2p_use_dither) {
-            build_greyscale_weights_lorez(W_CacheLumpName("PLAYPAL", PU_CACHE));
-        } else {
-            build_greyscale_weights_lorez_nodither(W_CacheLumpName("PLAYPAL", PU_CACHE));
-        }
+        build_greyscale_weights_lorez(W_CacheLumpName("PLAYPAL", PU_CACHE));
         for (int i=0; i<256; i++) {
             unsigned char *weights = mix_weights_lorez[i];
+            unsigned char color = weights_to_index(weights, 16);
             for (int phase=0; phase<4; phase++) {
                 // Fill 1x1 c2p table
                 for (int px=0; px<8; px++) {
-                    c2p_table[phase][i][px] = bayer4_lorez_pdata(weights, phase, px);
+                    c2p_table[phase][i][px] = lorez_pixel_pdata(color, px);
                 }
                 // Fill 2x2 c2p table
                 for (int ipx=0; ipx<4; ipx++) {
                     unsigned long ipx_pdata = 0;
                     for (int opx=2*ipx; opx<2*ipx+2; opx++) {
-                        ipx_pdata |= bayer4_lorez_pdata(weights, phase, opx);
+                        ipx_pdata |= lorez_pixel_pdata(color, opx);
                     }
                     c2p_2x_table[phase][i][ipx] = ipx_pdata;
                 }
@@ -624,7 +290,7 @@ void init_c2p_table() {
                 for (int ipx=0; ipx<2; ipx++) {
                     unsigned long ipx_pdata = 0;
                     for (int opx=4*ipx; opx<4*ipx+4; opx++) {
-                        ipx_pdata |= bayer4_lorez_pdata(weights, phase, opx);
+                        ipx_pdata |= lorez_pixel_pdata(color, opx);
                     }
                     c2p_4x_table[phase][i][ipx] = ipx_pdata;
                 }
@@ -638,19 +304,16 @@ void init_c2p_table() {
         install_palette = install_st_palette;
         save_palette = save_st_palette;
         set_doom_palette = set_st_doom_palette;
-        if (c2p_use_dither) {
-            build_greyscale_weights_midrez(W_CacheLumpName("PLAYPAL", PU_CACHE));
-        } else {
-            build_greyscale_weights_midrez_nodither(W_CacheLumpName("PLAYPAL", PU_CACHE));
-        }
+        build_greyscale_weights_midrez(W_CacheLumpName("PLAYPAL", PU_CACHE));
         for (int i=0; i<256; i++) {
             unsigned char *weights = mix_weights_midrez[i];
+            unsigned char color = weights_to_index(weights, 4);
             for (int phase=0; phase<4; phase++) {
                 // Fill 1x1 c2p table
                 for (int ipx=0; ipx<8; ipx++) {
                     unsigned long ipx_pdata = 0;
                     for (int opx=2*ipx; opx<2*ipx+2; opx++) {
-                        ipx_pdata |= bayer4_midrez_pdata(weights, phase, opx);
+                        ipx_pdata |= midrez_pixel_pdata(color, opx);
                     }
                     c2p_table[phase][i][ipx] = ipx_pdata;
                 }
@@ -658,7 +321,7 @@ void init_c2p_table() {
                 for (int ipx=0; ipx<4; ipx++) {
                     unsigned long ipx_pdata = 0;
                     for (int opx=4*ipx; opx<4*ipx+4; opx++) {
-                        ipx_pdata |= bayer4_midrez_pdata(weights, phase, opx);
+                        ipx_pdata |= midrez_pixel_pdata(color, opx);
                     }
                     c2p_2x_table[phase][i][ipx] = ipx_pdata;
                 }
@@ -666,7 +329,7 @@ void init_c2p_table() {
                 for (int ipx=0; ipx<2; ipx++) {
                     unsigned long ipx_pdata = 0;
                     for (int opx=8*ipx; opx<8*ipx+8; opx++) {
-                        ipx_pdata |= bayer4_midrez_pdata(weights, phase, opx);
+                        ipx_pdata |= midrez_pixel_pdata(color, opx);
                     }
                     c2p_4x_table[phase][i][ipx] = ipx_pdata;
                 }
@@ -680,18 +343,19 @@ void init_c2p_table() {
         install_palette = install_st_palette;
         save_palette = save_st_palette;
         set_doom_palette = set_st_doom_palette;
-        if (!c2p_use_dither) {
-            build_greyscale_weights_hirez_nodither(W_CacheLumpName("PLAYPAL", PU_CACHE));
-        }
+        build_greyscale_weights_hirez(W_CacheLumpName("PLAYPAL", PU_CACHE));
         for (int i=0; i<256; i++) {
-            unsigned char *weights = c2p_use_dither ? mix_weights_hirez[i] : mix_weights_hirez_nodither[i];
+            unsigned char *weights = mix_weights_hirez[i];
+            unsigned char color = weights_to_index(weights, 2);
             for (int phase=0; phase<2; phase++) {
                 // Fill 1x1 c2p table
                 for (int ipx=0; ipx<8; ipx++) {
                     unsigned long ipx_pdata = 0;
                     for (int opx=2*ipx; opx<2*ipx+2; opx++) {
-                        ipx_pdata |= bayer4_color(weights, 2, 2*phase, opx) << (31 - opx);
-                        ipx_pdata |= bayer4_color(weights, 2, 2*phase+1, opx) << (15 - opx);
+                        if (color) {
+                            ipx_pdata |= 1UL << (31 - opx);
+                            ipx_pdata |= 1UL << (15 - opx);
+                        }
                     }
                     c2p_table[phase][i][ipx] = ipx_pdata;
                 }
@@ -699,8 +363,10 @@ void init_c2p_table() {
                 for (int ipx=0; ipx<4; ipx++) {
                     unsigned long ipx_pdata = 0;
                     for (int opx=4*ipx; opx<4*ipx+4; opx++) {
-                        ipx_pdata |= bayer4_color(weights, 2, 2*phase, opx) << (31 - opx);
-                        ipx_pdata |= bayer4_color(weights, 2, 2*phase+1, opx) << (15 - opx);
+                        if (color) {
+                            ipx_pdata |= 1UL << (31 - opx);
+                            ipx_pdata |= 1UL << (15 - opx);
+                        }
                     }
                     c2p_2x_table[phase][i][ipx] = ipx_pdata;
                 }
@@ -708,8 +374,10 @@ void init_c2p_table() {
                 for (int ipx=0; ipx<2; ipx++) {
                     unsigned long ipx_pdata = 0;
                     for (int opx=8*ipx; opx<8*ipx+8; opx++) {
-                        ipx_pdata |= bayer4_color(weights, 2, 2*phase, opx) << (31 - opx);
-                        ipx_pdata |= bayer4_color(weights, 2, 2*phase+1, opx) << (15 - opx);
+                        if (color) {
+                            ipx_pdata |= 1UL << (31 - opx);
+                            ipx_pdata |= 1UL << (15 - opx);
+                        }
                     }
                     c2p_4x_table[phase][i][ipx] = ipx_pdata;
                 }
