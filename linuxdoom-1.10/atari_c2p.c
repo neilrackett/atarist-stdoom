@@ -19,6 +19,18 @@ const unsigned char subset_hirez[] =
     {0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 const unsigned char *subset;
 
+static const int c2p_use_dither = 0;
+
+// Keep in sync with st_stuff.c
+#define ST_STARTREDPALS 1
+#define ST_NUMREDPALS 8
+
+static int st_palette_index = 0;
+
+void set_st_palette_index(int index) {
+    st_palette_index = index;
+}
+
 // Some function pointers depending on screen resolution.
 void (*c2p_statusbar_drawfunc)(unsigned char *out, const unsigned char *in, short y_begin, short y_end, short x_begin, short x_end);
 void (*c2p_screen_drawfunc)(unsigned char *out, const unsigned char *in);
@@ -53,6 +65,18 @@ static void build_greyscale_weights_lorez(const unsigned char *colors) {
     }
 }
 
+static void build_greyscale_weights_lorez_nodither(const unsigned char *colors) {
+    for (int i = 0; i < 256; i++) {
+        const unsigned char *c = &colors[3 * i];
+        int luma = (c[0] * 30 + c[1] * 59 + c[2] * 11 + 50) / 100;
+        int level = luma / 17;
+        if (level > 15) level = 15;
+        unsigned char *weights = mix_weights_lorez[i];
+        for (int j = 0; j < 16; j++) weights[j] = 0;
+        weights[level] = 16;
+    }
+}
+
 // [DOOM color 0..255][ST color 0..3]
 static unsigned char mix_weights_midrez[256][4];
 
@@ -76,6 +100,18 @@ static void build_greyscale_weights_midrez(const unsigned char *colors) {
         if (w_hi && level < 3) {
             weights[level + 1] = (unsigned char)w_hi;
         }
+    }
+}
+
+static void build_greyscale_weights_midrez_nodither(const unsigned char *colors) {
+    for (int i = 0; i < 256; i++) {
+        const unsigned char *c = &colors[3 * i];
+        int luma = (c[0] * 30 + c[1] * 59 + c[2] * 11 + 50) / 100;
+        int level = luma / 85;
+        if (level > 3) level = 3;
+        unsigned char *weights = mix_weights_midrez[i];
+        for (int j = 0; j < 4; j++) weights[j] = 0;
+        weights[level] = 16;
     }
 }
 
@@ -338,6 +374,20 @@ static unsigned char mix_weights_hirez[256][2] = {
 { 10, 6,}, // 255: 7.343525
 };
 
+static unsigned char mix_weights_hirez_nodither[256][2];
+
+static void build_greyscale_weights_hirez_nodither(const unsigned char *colors) {
+    for (int i = 0; i < 256; i++) {
+        const unsigned char *c = &colors[3 * i];
+        int luma = (c[0] * 30 + c[1] * 59 + c[2] * 11 + 50) / 100;
+        int level = luma >= 128 ? 1 : 0;
+        unsigned char *weights = mix_weights_hirez_nodither[i];
+        weights[0] = 0;
+        weights[1] = 0;
+        weights[level] = 16;
+    }
+}
+
 // C2P table for full resolution
 // [phase 0..3][color 0..255][pixel 0..7]
 static unsigned long c2p_table[4][256][8];
@@ -402,21 +452,11 @@ void set_st_doom_palette(const unsigned char *colors) {
     short res = Getrez();
     int tint = 0;
     if ((res == 0 || res == 1) && colors) {
-        long sum_r = 0;
-        long sum_g = 0;
-        long sum_b = 0;
-        for (int i = 0; i < 256; i++) {
-            sum_r += colors[3 * i];
-            sum_g += colors[3 * i + 1];
-            sum_b += colors[3 * i + 2];
+        if (st_palette_index >= ST_STARTREDPALS
+            && st_palette_index < ST_STARTREDPALS + ST_NUMREDPALS) {
+            int level = st_palette_index - ST_STARTREDPALS + 1;
+            tint = (level * 128) / ST_NUMREDPALS;
         }
-        int avg_r = (int)(sum_r / 256);
-        int avg_g = (int)(sum_g / 256);
-        int avg_b = (int)(sum_b / 256);
-        int red_bias = avg_r - (avg_g + avg_b) / 2;
-        if (red_bias < 0) red_bias = 0;
-        if (red_bias > 128) red_bias = 128;
-        tint = red_bias;
     }
     for (int i = 0; i < 16; i++) {
         unsigned char grey = (unsigned char)((i * 255) / 15);
@@ -560,7 +600,11 @@ void init_c2p_table() {
         install_palette = install_st_palette;
         save_palette = save_st_palette;
         set_doom_palette = set_st_doom_palette;
-        build_greyscale_weights_lorez(W_CacheLumpName("PLAYPAL", PU_CACHE));
+        if (c2p_use_dither) {
+            build_greyscale_weights_lorez(W_CacheLumpName("PLAYPAL", PU_CACHE));
+        } else {
+            build_greyscale_weights_lorez_nodither(W_CacheLumpName("PLAYPAL", PU_CACHE));
+        }
         for (int i=0; i<256; i++) {
             unsigned char *weights = mix_weights_lorez[i];
             for (int phase=0; phase<4; phase++) {
@@ -594,7 +638,11 @@ void init_c2p_table() {
         install_palette = install_st_palette;
         save_palette = save_st_palette;
         set_doom_palette = set_st_doom_palette;
-        build_greyscale_weights_midrez(W_CacheLumpName("PLAYPAL", PU_CACHE));
+        if (c2p_use_dither) {
+            build_greyscale_weights_midrez(W_CacheLumpName("PLAYPAL", PU_CACHE));
+        } else {
+            build_greyscale_weights_midrez_nodither(W_CacheLumpName("PLAYPAL", PU_CACHE));
+        }
         for (int i=0; i<256; i++) {
             unsigned char *weights = mix_weights_midrez[i];
             for (int phase=0; phase<4; phase++) {
@@ -632,8 +680,11 @@ void init_c2p_table() {
         install_palette = install_st_palette;
         save_palette = save_st_palette;
         set_doom_palette = set_st_doom_palette;
+        if (!c2p_use_dither) {
+            build_greyscale_weights_hirez_nodither(W_CacheLumpName("PLAYPAL", PU_CACHE));
+        }
         for (int i=0; i<256; i++) {
-            unsigned char *weights = mix_weights_hirez[i];
+            unsigned char *weights = c2p_use_dither ? mix_weights_hirez[i] : mix_weights_hirez_nodither[i];
             for (int phase=0; phase<2; phase++) {
                 // Fill 1x1 c2p table
                 for (int ipx=0; ipx<8; ipx++) {

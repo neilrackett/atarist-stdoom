@@ -35,6 +35,8 @@ rcsid[] = "$Id: i_x.c,v 1.6 1997/02/03 22:45:10 b1 Exp $";
 #include "m_argv.h"
 #include "m_bbox.h"
 #include "d_main.h"
+#include "w_wad.h"
+#include "z_zone.h"
 
 #include "doomdef.h"
 
@@ -296,7 +298,7 @@ void I_FinishUpdate (void)
     }
 
     c2p_screen(st_screen, screens[0]);
-    c2p_statusbar(st_screen, screens[0], dirtybox[BOXBOTTOM], dirtybox[BOXTOP] + 1, dirtybox[BOXLEFT], dirtybox[BOXRIGHT] + 1);
+    c2p_statusbar(st_screen, screens[0], st_dirtybox[BOXBOTTOM], st_dirtybox[BOXTOP] + 1, st_dirtybox[BOXLEFT], st_dirtybox[BOXRIGHT] + 1);
 }
 
 
@@ -314,6 +316,12 @@ void I_ReadScreen (byte* scr)
 //
 void I_SetPalette (byte* palette)
 {
+    int pal_index = 0;
+    byte *playpal = (byte *) W_CacheLumpName("PLAYPAL", PU_CACHE);
+    if (palette >= playpal && palette < playpal + (256 * 768)) {
+        pal_index = (int)((palette - playpal) / 768);
+    }
+    set_st_palette_index(pal_index);
     set_doom_palette(palette);
 }
 
@@ -346,4 +354,3 @@ void InitExpand (void)
 }
 
 int	inited;
-

@@ -38,12 +38,14 @@ rcsid[] = "$Id: v_video.c,v 1.5 1997/02/03 22:45:13 b1 Exp $";
 #include "m_swap.h"
 
 #include "v_video.h"
+#include "st_stuff.h"
 
 
 // Each screen is [SCREENWIDTH*SCREENHEIGHT]; 
 byte*				screens[5];	
  
 int				dirtybox[4]; 
+int				st_dirtybox[4];
 
 
 
@@ -148,12 +150,21 @@ V_MarkRect
 { 
     M_AddToBox (dirtybox, x, y); 
     M_AddToBox (dirtybox, x+width-1, y+height-1); 
+    if (y <= ST_Y + ST_HEIGHT - 1 && y + height - 1 >= ST_Y) {
+        int bottom = y;
+        int top = y + height - 1;
+        if (bottom < ST_Y) bottom = ST_Y;
+        if (top > ST_Y + ST_HEIGHT - 1) top = ST_Y + ST_HEIGHT - 1;
+        M_AddToBox (st_dirtybox, x, bottom);
+        M_AddToBox (st_dirtybox, x+width-1, top);
+    }
 } 
 
 void
 V_ClearRect()
 {
     M_ClearBox (dirtybox);
+    M_ClearBox (st_dirtybox);
 }
 
 //
