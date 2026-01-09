@@ -278,7 +278,7 @@ default_t	defaults[] =
     {"joyb_use",&joybuse,3},
     {"joyb_speed",&joybspeed,2},
 
-    {"screenblocks",&screenblocks, 8},
+    {"screenblocks",&screenblocks, 4},
     {"detaillevel",&detailLevel, 0},
 
     {"snd_channels",&numChannels, 3},

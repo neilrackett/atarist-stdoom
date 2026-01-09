@@ -154,7 +154,6 @@ void R_DrawColumn (void)
     // This is as fast as it gets.
     byte *source = dc_source;
     lighttable_t *colormap = dc_colormap;
-#ifdef USEASM
     // Invert the order of the fixed-point values so that the integral part
     // is in the lowest 7 bits, thereby making bit-shifting unnecessary.
     fracstep = to_8_0Q6(fracstep);
@@ -212,18 +211,6 @@ void R_DrawColumn (void)
         // clobbers
         : "memory", "cc"
     );	
-#else
-    do 
-    {
-	// Re-map color indices from wall texture column
-	//  using a lighting/special effects LUT.
-	*dest = colormap[source[frac>>8]];
-	
-	dest += SCREENWIDTH; 
-	frac += fracstep;
-	
-    } while (count--); 
-#endif
 } 
 
 
@@ -292,8 +279,8 @@ void R_DrawColumnLow (void)
     short		count; 
     byte*		dest; 
     byte*		dest2;
-    fixed_t		frac;
-    fixed_t		fracstep;	 
+    unsigned short	frac;
+    unsigned short	fracstep;	 
  
     count = dc_yh - dc_yl; 
 
@@ -317,18 +304,39 @@ void R_DrawColumnLow (void)
     dest = ylookup[dc_yl] + columnofs[dc_x];
     dest2 = ylookup[dc_yl] + columnofs[dc_x+1];
     
-    fracstep = dc_iscale; 
-    frac = dc_texturemid + (dc_yl-centery)*fracstep;
-    
-    do 
-    {
-	// Hack. Does not work corretly.
-	*dest2 = *dest = dc_colormap[dc_source[(frac>>FRACBITS)&127]];
-	dest += SCREENWIDTH;
-	dest2 += SCREENWIDTH;
-	frac += fracstep; 
+    fracstep = reduce(dc_iscale); 
+    frac = reduce(dc_texturemid) + (int)(dc_yl-centery) * fracstep;
 
-    } while (count--);
+    byte *source = dc_source;
+    lighttable_t *colormap = dc_colormap;
+    fracstep = to_8_0Q6(fracstep);
+    frac = to_8_0Q6(frac);
+    unsigned long tmp = 0;
+    asm volatile (
+	// Clear X flag for addx in loop.
+	"add.w  %[tmp],%[frac]                  \n\t"
+	"0:                                     \n\t"
+	"move.b %[frac],%[tmp]                  \n\t"
+	"move.b (%[source],%[tmp].w),%[tmp]     \n\t"
+	"move.b (%[colormap],%[tmp].w),(%[dest])\n\t"
+	"move.b (%[colormap],%[tmp].w),(%[dest2])\n\t"
+	"addx.w %[step],%[frac]                 \n\t"
+	"and.w  %[mask],%[frac]                 \n\t"
+	"lea    (%c[width])(%[dest]),%[dest]    \n\t"
+	"lea    (%c[width])(%[dest2]),%[dest2]  \n\t"
+	"dbra   %[count],0b                     \n\t"
+	: [tmp] "+&d" (tmp)
+	, [frac] "+&d" (frac)
+	, [dest] "+&a" (dest)
+	, [dest2] "+&a" (dest2)
+	, [count] "+&d" (count)
+	: [source] "a" (source)
+	, [colormap] "a" (colormap)
+	, [step] "d" (fracstep)
+	, [mask] "d" (0xff7f)
+	, [width] "i" (SCREENWIDTH)
+	: "memory", "cc"
+    );
 }
 
 
