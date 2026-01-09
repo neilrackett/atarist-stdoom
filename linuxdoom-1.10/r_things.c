@@ -348,28 +348,54 @@ short*		mceilingclip;
 fixed_t		spryscale;
 fixed_t		sprtopscreen;
 
+static inline fixed_t FixedMulUShort(fixed_t a, unsigned short b)
+{
+    register fixed_t result asm("d0");
+    register unsigned short tmp asm("d1");
+    asm (
+	    "move.w	%[a],%[tmp]	    \n\t"
+	    "mulu.w	%[b],%[tmp]	    \n\t"
+	    "swap	%[a]            \n\t"
+	    "move.w	%[a],%[res]	    \n\t"
+	    "mulu.w	%[b],%[res]	    \n\t"
+	    "swap	%[res]          \n\t"
+	    "clr.w	%[res]          \n\t"
+	    "add.l	%[tmp], %[res]  \n\t"
+        : [res] "=&d" (result)
+        , [tmp] "=&d" (tmp)
+        , [a] "+&d" (a)
+        : [b] "d" (b)
+        : "cc"
+    );
+    return result;
+}
+
 void R_DrawMaskedColumn (column_t* column)
 {
     int		topscreen;
     int 	bottomscreen;
     fixed_t	basetexturemid;
+    short		floorclip;
+    short		ceilclip;
 	
     basetexturemid = dc_texturemid;
+    floorclip = mfloorclip[dc_x];
+    ceilclip = mceilingclip[dc_x];
 	
     for ( ; column->topdelta != 0xff ; ) 
     {
 	// calculate unclipped screen coordinates
 	//  for post
-	topscreen = sprtopscreen + FixedMulShort(spryscale, column->topdelta);
-	bottomscreen = topscreen + FixedMulShort(spryscale, column->length);
+	topscreen = sprtopscreen + FixedMulUShort(spryscale, column->topdelta);
+	bottomscreen = topscreen + FixedMulUShort(spryscale, column->length);
 
 	dc_yl = (topscreen+FRACUNIT-1)>>FRACBITS;
 	dc_yh = (bottomscreen-1)>>FRACBITS;
 		
-	if (dc_yh >= mfloorclip[dc_x])
-	    dc_yh = mfloorclip[dc_x]-1;
-	if (dc_yl <= mceilingclip[dc_x])
-	    dc_yl = mceilingclip[dc_x]+1;
+	if (dc_yh >= floorclip)
+	    dc_yh = floorclip - 1;
+	if (dc_yl <= ceilclip)
+	    dc_yl = ceilclip + 1;
 
 	if (dc_yl <= dc_yh)
 	{
@@ -403,9 +429,18 @@ R_DrawVisSprite
     int			texturecolumn;
     fixed_t		frac;
     patch_t*		patch;
+    byte*		patchbase;
+    int			patchwidth;
+    static int		colofs_cache[SCREENWIDTH];
+    int			tc_min;
+    int			tc_max;
 	
 	
     patch = W_CacheLumpNum (vis->patch+firstspritelump, PU_CACHE);
+    patchbase = (byte *)patch;
+    patchwidth = SHORT(patch->width);
+    if (patchwidth > SCREENWIDTH)
+	patchwidth = SCREENWIDTH;
 
     dc_colormap = vis->colormap;
     
@@ -426,6 +461,21 @@ R_DrawVisSprite
     frac = vis->startfrac;
     spryscale = vis->scale;
     sprtopscreen = centeryfrac - FixedMul(dc_texturemid,spryscale);
+
+    tc_min = vis->startfrac >> FRACBITS;
+    tc_max = (vis->startfrac + vis->xiscale * (vis->x2 - vis->x1)) >> FRACBITS;
+    if (tc_min > tc_max)
+    {
+	int tmp = tc_min;
+	tc_min = tc_max;
+	tc_max = tmp;
+    }
+    if (tc_min < 0)
+	tc_min = 0;
+    if (tc_max >= patchwidth)
+	tc_max = patchwidth - 1;
+    for (int i = tc_min; i <= tc_max; i++)
+	colofs_cache[i] = LONG(patch->columnofs[i]);
 	
     for (dc_x=vis->x1 ; dc_x<=vis->x2 ; dc_x++, frac += vis->xiscale)
     {
@@ -434,8 +484,7 @@ R_DrawVisSprite
 	if (texturecolumn < 0 || texturecolumn >= SHORT(patch->width))
 	    I_Error ("R_DrawSpriteRange: bad texturecolumn");
 #endif
-	column = (column_t *) ((byte *)patch +
-			       LONG(patch->columnofs[texturecolumn]));
+	column = (column_t *)(patchbase + colofs_cache[texturecolumn]);
 	R_DrawMaskedColumn (column);
     }
 
@@ -984,6 +1033,3 @@ void R_DrawMasked (void)
     if (!viewangleoffset)		
 	R_DrawPlayerSprites ();
 }
-
-
-

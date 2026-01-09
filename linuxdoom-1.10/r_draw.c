@@ -404,40 +404,31 @@ void R_DrawFuzzColumn (void)
     // Use colormap #6 so the color gets a little darker.
     byte *colormap = colormaps + 6*256;
 
-#ifdef USEASM
-    // The high-byte is never overwritten.
-    unsigned short tmp = 0;
-#endif
-
-    do {
-#ifdef USEASM
-        asm (
-                "move.b (%[dest],%[ofs].w),%[tmp]               \n\t"
-                "move.b (%[colormap],%[tmp].w),%[tmp]           \n\t"
-                // outputs
-                : [tmp] "+d" (tmp)
-                // inputs
-                : [colormap] "a" (colormap)
-                , [ofs] "d" (fuzzoffset[fuzzpos_tmp])
-                , [dest] "a" (dest)
-                // clobbers
-                : "memory"
-        );
-        *dest = tmp;
-#else
-	// Lookup framebuffer, and retrieve
-	//  a pixel that is either one column
-	//  left or right of the current one.
-	// Add index from colormap to index.
-	*dest = colormap[dest[fuzzoffset[fuzzpos_tmp]]]; 
-#endif
-
-	// Clamp table lookup index.
-	if (++fuzzpos_tmp == FUZZTABLE) 
-	    fuzzpos_tmp = 0;
-
-	dest += SCREENWIDTH; 
-    } while (count--);
+    asm volatile (
+	"move.w %[fuzzpos],%%d6                 \n\t"
+	"0:                                     \n\t"
+	"move.w %%d6,%%d7                       \n\t"
+	"add.w  %%d7,%%d7                       \n\t"
+	"move.w (%[fuzzofs],%%d7.w),%%d5        \n\t"
+	"move.b (%[dest],%%d5.w),%%d4           \n\t"
+	"move.b (%[colormap],%%d4.w),%%d4       \n\t"
+	"move.b %%d4,(%[dest])                  \n\t"
+	"addq.w #1,%%d6                         \n\t"
+	"cmpi.w #50,%%d6                        \n\t"
+	"bne    1f                              \n\t"
+	"moveq  #0,%%d6                         \n\t"
+	"1:                                     \n\t"
+	"lea    (%c[width])(%[dest]),%[dest]    \n\t"
+	"dbra   %[count],0b                     \n\t"
+	"move.w %%d6,%[fuzzpos]                 \n\t"
+	: [dest] "+&a" (dest)
+	, [count] "+&d" (count)
+	, [fuzzpos] "+&d" (fuzzpos_tmp)
+	: [fuzzofs] "a" (fuzzoffset)
+	, [colormap] "a" (colormap)
+	, [width] "i" (SCREENWIDTH)
+	: "d4", "d5", "d6", "d7", "memory", "cc"
+    );
 
     fuzzpos = fuzzpos_tmp; // Copy register back into global
 } 
@@ -461,8 +452,8 @@ void R_DrawTranslatedColumn (void)
 { 
     short		count; 
     byte*		dest; 
-    fixed_t		frac;
-    fixed_t		fracstep;	 
+    unsigned short	frac;
+    unsigned short	fracstep;	 
  
     count = dc_yh - dc_yl; 
     if (count < 0) 
@@ -503,22 +494,39 @@ void R_DrawTranslatedColumn (void)
     dest = ylookup[dc_yl] + columnofs[dc_x]; 
 
     // Looks familiar.
-    fracstep = dc_iscale; 
-    frac = dc_texturemid + (dc_yl-centery)*fracstep; 
+    fracstep = reduce(dc_iscale); 
+    frac = reduce(dc_texturemid) + (int)(dc_yl-centery) * fracstep;
 
-    // Here we do an additional index re-mapping.
-    do 
-    {
-	// Translation tables are used
-	//  to map certain colorramps to other ones,
-	//  used with PLAY sprites.
-	// Thus the "green" ramp of the player 0 sprite
-	//  is mapped to gray, red, black/indigo. 
-	*dest = dc_colormap[dc_translation[dc_source[frac>>FRACBITS]]];
-	dest += SCREENWIDTH;
-	
-	frac += fracstep; 
-    } while (count--); 
+    byte *source = dc_source;
+    byte *translation = dc_translation;
+    lighttable_t *colormap = dc_colormap;
+    fracstep = to_8_0Q6(fracstep);
+    frac = to_8_0Q6(frac);
+    unsigned long tmp = 0;
+    asm volatile (
+	// Clear X flag for addx in loop.
+	"add.w  %[tmp],%[frac]                  \n\t"
+	"0:                                     \n\t"
+	"move.b %[frac],%[tmp]                  \n\t"
+	"move.b (%[source],%[tmp].w),%[tmp]     \n\t"
+	"move.b (%[trans],%[tmp].w),%[tmp]      \n\t"
+	"move.b (%[colormap],%[tmp].w),(%[dest])\n\t"
+	"addx.w %[step],%[frac]                 \n\t"
+	"and.w  %[mask],%[frac]                 \n\t"
+	"lea    (%c[width])(%[dest]),%[dest]    \n\t"
+	"dbra   %[count],0b                     \n\t"
+	: [tmp] "+&d" (tmp)
+	, [frac] "+&d" (frac)
+	, [dest] "+&a" (dest)
+	, [count] "+&d" (count)
+	: [source] "a" (source)
+	, [trans] "a" (translation)
+	, [colormap] "a" (colormap)
+	, [step] "d" (fracstep)
+	, [mask] "d" (0xff7f)
+	, [width] "i" (SCREENWIDTH)
+	: "memory", "cc"
+    );
 } 
 
 
@@ -599,17 +607,12 @@ static fixed_2in1_t pack(unsigned int a, unsigned int b)
     return ((a & 0x003fff80) << 10) | ((b & 0x003fff80) >> 6);
 }
 
-unsigned short rotl16 (unsigned short value, unsigned int count) {
-    return (value << count) | (value >> (16 - count));
-}
-
 //
 // Draws the actual span.
 void R_DrawSpan (void) 
 { 
     byte*		dest; 
     short		count;
-    short		spot; 
 	 
 #ifdef RANGECHECK 
     if (ds_x2 < ds_x1
@@ -636,24 +639,31 @@ void R_DrawSpan (void)
     fixed_2in1_t mask = 0xfffefffe;
     fixed_2in1_t frac = pack(ds_xfrac, ds_yfrac);
     fixed_2in1_t step = pack(ds_xstep, ds_ystep);
-    do 
-    {
-	// Current texture index in u,v.
-	//spot = ((yfrac>>(16-6))&(63*64)) + ((xfrac>>16)&63);
-        fixed_2in1_t frac2 = frac & 0xfc00fc00;
-        spot = frac2 >> 16; // Implemented using swap
-        spot = rotl16(spot, 6); // Want 6 bits of x in low position
-        spot |= ((unsigned short)frac2) >> 4; // Add 6 bits of y in high position
-
-	// Lookup pixel from flat texture tile,
-	//  re-index using light/colormap.
-	*dest++ = colormap[source[spot]];
-
-	// Next step in u,v.
-        frac += step;
-        frac &= mask;
-	
-    } while (count--); 
+    asm volatile (
+	"0:                                     \n\t"
+	"move.l %[frac],%%d3                    \n\t"
+	"move.w %%d3,%%d4                       \n\t"
+	"and.w  #0xfc00,%%d4                    \n\t"
+	"lsr.w  #4,%%d4                         \n\t"
+	"swap   %%d3                            \n\t"
+	"and.w  #0xfc00,%%d3                    \n\t"
+	"lsr.w  #8,%%d3                         \n\t"
+	"lsr.w  #2,%%d3                         \n\t"
+	"or.w   %%d4,%%d3                       \n\t"
+	"move.b (%[source],%%d3.w),%%d5         \n\t"
+	"move.b (%[colormap],%%d5.w),(%[dest])+ \n\t"
+	"add.l  %[step],%[frac]                 \n\t"
+	"and.l  %[mask],%[frac]                 \n\t"
+	"dbra   %[count],0b                     \n\t"
+	: [dest] "+&a" (dest)
+	, [count] "+&d" (count)
+	, [frac] "+&d" (frac)
+	: [source] "a" (source)
+	, [colormap] "a" (colormap)
+	, [step] "d" (step)
+	, [mask] "d" (mask)
+	: "d3", "d4", "d5", "memory", "cc"
+    );
 } 
 
 
@@ -736,11 +746,8 @@ void R_DrawSpan (void)
 //
 void R_DrawSpanLow (void) 
 { 
-    fixed_t		xfrac;
-    fixed_t		yfrac; 
     byte*		dest; 
     short		count;
-    short		spot; 
 	 
 #ifdef RANGECHECK 
     if (ds_x2 < ds_x1
@@ -754,9 +761,6 @@ void R_DrawSpanLow (void)
 //	dscount++; 
 #endif 
 	 
-    xfrac = ds_xfrac; 
-    yfrac = ds_yfrac; 
-
     // Blocky mode, need to multiply by 2.
     ds_x1 <<= 1;
     ds_x2 <<= 1;
@@ -765,18 +769,39 @@ void R_DrawSpanLow (void)
   
     
     count = ds_x2 - ds_x1; 
-    do 
-    { 
-	spot = ((yfrac>>(16-6))&(63*64)) + ((xfrac>>16)&63);
-	// Lowres/blocky mode does it twice,
-	//  while scale is adjusted appropriately.
-	*dest++ = ds_colormap[ds_source[spot]]; 
-	*dest++ = ds_colormap[ds_source[spot]];
-	
-	xfrac += ds_xstep; 
-	yfrac += ds_ystep; 
 
-    } while (count--); 
+    lighttable_t *colormap = ds_colormap;
+    byte *source = ds_source;
+    fixed_2in1_t mask = 0xfffefffe;
+    fixed_2in1_t frac = pack(ds_xfrac, ds_yfrac);
+    fixed_2in1_t step = pack(ds_xstep, ds_ystep);
+    asm volatile (
+	"0:                                     \n\t"
+	"move.l %[frac],%%d3                    \n\t"
+	"move.w %%d3,%%d4                       \n\t"
+	"and.w  #0xfc00,%%d4                    \n\t"
+	"lsr.w  #4,%%d4                         \n\t"
+	"swap   %%d3                            \n\t"
+	"and.w  #0xfc00,%%d3                    \n\t"
+	"lsr.w  #8,%%d3                         \n\t"
+	"lsr.w  #2,%%d3                         \n\t"
+	"or.w   %%d4,%%d3                       \n\t"
+	"move.b (%[source],%%d3.w),%%d5         \n\t"
+	"move.b (%[colormap],%%d5.w),%%d5       \n\t"
+	"move.b %%d5,(%[dest])+                 \n\t"
+	"move.b %%d5,(%[dest])+                 \n\t"
+	"add.l  %[step],%[frac]                 \n\t"
+	"and.l  %[mask],%[frac]                 \n\t"
+	"dbra   %[count],0b                     \n\t"
+	: [dest] "+&a" (dest)
+	, [count] "+&d" (count)
+	, [frac] "+&d" (frac)
+	: [source] "a" (source)
+	, [colormap] "a" (colormap)
+	, [step] "d" (step)
+	, [mask] "d" (mask)
+	: "d3", "d4", "d5", "memory", "cc"
+    );
 }
 
 //

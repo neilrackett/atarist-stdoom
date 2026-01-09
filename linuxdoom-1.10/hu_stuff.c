@@ -144,6 +144,7 @@ static void HU_DrawFps(void)
     static int fps_lasttime = 0;
     static int fps_frames = 0;
     static int fps_value = 0;
+    static int fps_milli = 0;
     const int pad = 2;
     int now = I_GetTime();
     int elapsed;
@@ -163,12 +164,14 @@ static void HU_DrawFps(void)
     elapsed = now - fps_lasttime;
     if (elapsed >= TICRATE)
     {
-	fps_value = (fps_frames * TICRATE + (elapsed / 2)) / elapsed;
+	int fps_scaled = (fps_frames * TICRATE * 1000 + (elapsed / 2)) / elapsed;
+	fps_value = fps_scaled / 1000;
+	fps_milli = fps_scaled % 1000;
 	fps_frames = 0;
 	fps_lasttime = now;
     }
 
-    sprintf(fpsbuf, "FPS %d", fps_value);
+    sprintf(fpsbuf, "FPS %d.%03d", fps_value, fps_milli);
     width = HU_TextWidth(fpsbuf);
     height = SHORT(hu_font[0]->height);
     x = SCREENWIDTH - width - 2;
