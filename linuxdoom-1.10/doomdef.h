@@ -111,7 +111,7 @@ typedef enum
 
 // Atari ST: render low-res and scale to output. Supported: 1, 2, 4.
 #define ST_LOWRES_SCALAR 2
-#define ST_LOWRES_WIDTH 128
+#define ST_LOWRES_WIDTH 144
 #define ST_LOWRES_HEIGHT 64
 
 #if (ST_LOWRES_SCALAR != 1) && (ST_LOWRES_SCALAR != 2) && (ST_LOWRES_SCALAR != 4)
