@@ -3,6 +3,7 @@
 #include "atari_c2p.h"
 #include "i_system.h"
 #include "r_main.h"
+#include "r_draw.h"
 #include "w_wad.h"
 #include "z_zone.h"
 #include "doomdef.h"
@@ -524,9 +525,59 @@ static void c2p_screen_lorez(unsigned char *out, const unsigned char *in) {
         }
     } else if(viewwidth > SCREENWIDTH/4) {
         // 2x zoom
-        for (short line = 0; line < splitline; line++ ) {
-            c2p_2x_lorez(out + 160*line, in + SCREENWIDTH*(42 + line/2) + 80, 160, c2p_2x_table[line&3]);
+        short maxline = splitline;
+#if ST_LOWRES_2X
+        if (viewwidth * 2 == SCREENWIDTH && viewheight * 2 == SCREENHEIGHT) {
+            maxline = SCREENHEIGHT;
+            for (short line = 0; line < maxline; line++ ) {
+                short src_line = (short)(viewwindowy + (line >> 1));
+                c2p_2x_lorez(out + 160*line, in + SCREENWIDTH * src_line + viewwindowx, viewwidth, c2p_2x_table[line&3]);
+            }
+        } else {
+            short scaled_w = (short)(viewwidth << 1);
+            short scaled_h = (short)(viewheight << 1);
+            short out_x = (short)viewwindowx;
+            short out_y = (short)viewwindowy;
+            if (out_x < 0) out_x = 0;
+            if (out_y < 0) out_y = 0;
+            if (scaled_h > splitline - out_y) scaled_h = (short)(splitline - out_y);
+
+            if (out_y > 0) {
+                c2p_screen_rect(out, in, 0, out_y, 0, SCREENWIDTH);
+            }
+            {
+                short bottom_y = (short)(out_y + scaled_h);
+                if (bottom_y < splitline) {
+                    c2p_screen_rect(out, in, bottom_y, splitline, 0, SCREENWIDTH);
+                }
+                if (out_x > 0) {
+                    c2p_screen_rect(out, in, out_y, bottom_y, 0, out_x);
+                }
+                {
+                    short right_x = (short)(out_x + scaled_w);
+                    if (right_x < SCREENWIDTH) {
+                        c2p_screen_rect(out, in, out_y, bottom_y, right_x, SCREENWIDTH);
+                    }
+                }
+            }
+
+            for (short line = 0; line < scaled_h; line++ ) {
+                short dst_line = (short)(out_y + line);
+                short src_line = (short)(viewwindowy + (line >> 1));
+                c2p_2x_lorez(
+                    out + 160 * dst_line + (out_x >> 1),
+                    in + SCREENWIDTH * src_line + viewwindowx,
+                    viewwidth,
+                    c2p_2x_table[dst_line & 3]
+                );
+            }
         }
+#else
+        for (short line = 0; line < maxline; line++ ) {
+            short src_line = (short)(viewwindowy + (line >> 1));
+            c2p_2x_lorez(out + 160*line, in + SCREENWIDTH * src_line + viewwindowx, viewwidth, c2p_2x_table[line&3]);
+        }
+#endif
     } else {
         // 4x zoom
         for (short line = 0; line < splitline; line++ ) {

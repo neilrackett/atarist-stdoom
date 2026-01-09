@@ -817,21 +817,34 @@ R_InitBuffer
   short		height ) 
 { 
     short		i; 
+    short		dispwidth = width;
+    short		dispheight = height;
+
+#if ST_LOWRES_2X
+    if (width == ST_LOWRES_WIDTH && height == ST_LOWRES_HEIGHT) {
+	dispwidth = width * 2;
+	dispheight = height * 2;
+    }
+#endif
 
     // Handle resize,
     //  e.g. smaller view windows
     //  with border and/or status bar.
-    viewwindowx = (SCREENWIDTH-width) >> 1; 
+    viewwindowx = (SCREENWIDTH-dispwidth) >> 1; 
+#if ST_LOWRES_2X
+    // Align to 16-pixel blocks for C2P conversion.
+    viewwindowx &= ~15;
+#endif
 
     // Column offset. For windows.
     for (i=0 ; i<width ; i++) 
 	columnofs[i] = viewwindowx + i;
 
     // Samw with base row offset.
-    if (width == SCREENWIDTH) 
+    if (dispwidth == SCREENWIDTH || dispheight >= (SCREENHEIGHT-SBARHEIGHT)) 
 	viewwindowy = 0; 
     else 
-	viewwindowy = (SCREENHEIGHT-SBARHEIGHT-height) >> 1; 
+	viewwindowy = (SCREENHEIGHT-SBARHEIGHT-dispheight) >> 1; 
 
     // Preclaculate all row offsets.
     for (i=0 ; i<height ; i++) 
@@ -854,6 +867,8 @@ void R_FillBackScreen (void)
     int		x;
     int		y; 
     patch_t*	patch;
+    int		dispwidth = scaledviewwidth;
+    int		dispheight = viewheight;
 
     // DOOM border patch.
     char	name1[] = "FLOOR7_2";
@@ -863,7 +878,14 @@ void R_FillBackScreen (void)
 
     char*	name;
 	
-    if (scaledviewwidth == 320)
+    #if ST_LOWRES_2X
+    if (scaledviewwidth == ST_LOWRES_WIDTH && viewheight == ST_LOWRES_HEIGHT) {
+	dispwidth = scaledviewwidth * 2;
+	dispheight = viewheight * 2;
+    }
+    #endif
+
+    if (dispwidth == 320)
 	return;
 	
     if ( gamemode == commercial)
@@ -891,20 +913,20 @@ void R_FillBackScreen (void)
 	
     patch = W_CacheLumpName ("brdr_t",PU_CACHE);
 
-    for (x=0 ; x<scaledviewwidth ; x+=8)
+    for (x=0 ; x<dispwidth ; x+=8)
 	V_DrawPatch (viewwindowx+x,viewwindowy-8,1,patch);
     patch = W_CacheLumpName ("brdr_b",PU_CACHE);
 
-    for (x=0 ; x<scaledviewwidth ; x+=8)
-	V_DrawPatch (viewwindowx+x,viewwindowy+viewheight,1,patch);
+    for (x=0 ; x<dispwidth ; x+=8)
+	V_DrawPatch (viewwindowx+x,viewwindowy+dispheight,1,patch);
     patch = W_CacheLumpName ("brdr_l",PU_CACHE);
 
-    for (y=0 ; y<viewheight ; y+=8)
+    for (y=0 ; y<dispheight ; y+=8)
 	V_DrawPatch (viewwindowx-8,viewwindowy+y,1,patch);
     patch = W_CacheLumpName ("brdr_r",PU_CACHE);
 
-    for (y=0 ; y<viewheight ; y+=8)
-	V_DrawPatch (viewwindowx+scaledviewwidth,viewwindowy+y,1,patch);
+    for (y=0 ; y<dispheight ; y+=8)
+	V_DrawPatch (viewwindowx+dispwidth,viewwindowy+y,1,patch);
 
 
     // Draw beveled edge. 
@@ -913,7 +935,7 @@ void R_FillBackScreen (void)
 		 1,
 		 W_CacheLumpName ("brdr_tl",PU_CACHE));
     
-    V_DrawPatch (viewwindowx+scaledviewwidth,
+    V_DrawPatch (viewwindowx+dispwidth,
 		 viewwindowy-8,
 		 1,
 		 W_CacheLumpName ("brdr_tr",PU_CACHE));
@@ -923,8 +945,8 @@ void R_FillBackScreen (void)
 		 1,
 		 W_CacheLumpName ("brdr_bl",PU_CACHE));
     
-    V_DrawPatch (viewwindowx+scaledviewwidth,
-		 viewwindowy+viewheight,
+    V_DrawPatch (viewwindowx+dispwidth,
+		 viewwindowy+dispheight,
 		 1,
 		 W_CacheLumpName ("brdr_br",PU_CACHE));
 } 
@@ -962,32 +984,45 @@ V_MarkRect
 void R_DrawViewBorder (void) 
 { 
     int		top;
-    int		side;
+    int		left;
+    int		right;
+    int		bottom;
     int		ofs;
     int		i; 
- 
-    if (scaledviewwidth == SCREENWIDTH) 
+    int		dispwidth = scaledviewwidth;
+    int		dispheight = viewheight;
+
+    #if ST_LOWRES_2X
+    if (scaledviewwidth == ST_LOWRES_WIDTH && viewheight == ST_LOWRES_HEIGHT) {
+	dispwidth = scaledviewwidth * 2;
+	dispheight = viewheight * 2;
+    }
+    #endif
+
+    if (dispwidth == SCREENWIDTH) 
 	return; 
   
-    top = ((SCREENHEIGHT-SBARHEIGHT)-viewheight)/2; 
-    side = (SCREENWIDTH-scaledviewwidth)/2; 
- 
-    // copy top and one line of left side 
-    R_VideoErase (0, top*SCREENWIDTH+side); 
- 
-    // copy one line of right side and bottom 
-    ofs = (viewheight+top)*SCREENWIDTH-side; 
-    R_VideoErase (ofs, top*SCREENWIDTH+side); 
- 
-    // copy sides using wraparound 
-    ofs = top*SCREENWIDTH + SCREENWIDTH-side; 
-    side <<= 1;
-    
-    for (i=1 ; i<viewheight ; i++) 
-    { 
-	R_VideoErase (ofs, side); 
-	ofs += SCREENWIDTH; 
-    } 
+    top = viewwindowy;
+    left = viewwindowx;
+    right = SCREENWIDTH - (viewwindowx + dispwidth);
+    bottom = (SCREENHEIGHT - SBARHEIGHT) - (top + dispheight);
+
+    if (top > 0) {
+	R_VideoErase(0, top * SCREENWIDTH);
+    }
+    if (bottom > 0) {
+	ofs = (top + dispheight) * SCREENWIDTH;
+	R_VideoErase(ofs, bottom * SCREENWIDTH);
+    }
+
+    for (i=0 ; i<dispheight ; i++) 
+    {
+	ofs = (top + i) * SCREENWIDTH;
+	if (left > 0)
+	    R_VideoErase(ofs, left);
+	if (right > 0)
+	    R_VideoErase(ofs + SCREENWIDTH - right, right);
+    }
 
     // ? 
     V_MarkRect (0,0,SCREENWIDTH, SCREENHEIGHT-SBARHEIGHT); 

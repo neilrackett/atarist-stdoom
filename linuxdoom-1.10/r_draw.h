@@ -39,6 +39,9 @@ extern fixed_t		dc_texturemid;
 // first pixel in a column
 extern byte*		dc_source;		
 
+extern int		viewwindowx;
+extern int		viewwindowy;
+
 
 // The span blitting interface.
 // Hook in assembler or system specific BLT

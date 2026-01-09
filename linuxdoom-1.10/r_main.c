@@ -679,6 +679,11 @@ void R_ExecuteSetViewSize (void)
 
     setsizeneeded = false;
 
+#if ST_LOWRES_2X
+    scaledviewwidth = ST_LOWRES_WIDTH;
+    viewheight = ST_LOWRES_HEIGHT;
+    detailshift = 0;
+#else
     if (setblocks == 11)
     {
 	scaledviewwidth = SCREENWIDTH;
@@ -696,6 +701,7 @@ void R_ExecuteSetViewSize (void)
     }
     
     detailshift = setdetail;
+#endif
     viewwidth = scaledviewwidth>>detailshift;
 	
     centery = viewheight/2;
