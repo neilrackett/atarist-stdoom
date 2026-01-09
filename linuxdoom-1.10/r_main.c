@@ -679,7 +679,7 @@ void R_ExecuteSetViewSize (void)
 
     setsizeneeded = false;
 
-#if ST_LOWRES_2X
+#if ST_LOWRES_SCALAR > 1
     scaledviewwidth = ST_LOWRES_WIDTH;
     viewheight = ST_LOWRES_HEIGHT;
     detailshift = 0;

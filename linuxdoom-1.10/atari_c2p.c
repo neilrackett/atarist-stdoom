@@ -178,6 +178,7 @@ void init_c2p_table() {
                 }
                 c2p_4x_table[phase][i][ipx] = ipx_pdata;
             }
+
         }
     }
 }
@@ -519,15 +520,14 @@ static void c2p_screen_lorez(unsigned char *out, const unsigned char *in) {
     boolean zoom_allowed = gamestate == GS_LEVEL
         && !menuactive && !inhelpscreens && !automapactive;
     short splitline = !zoom_allowed || viewheight == SCREENHEIGHT ? SCREENHEIGHT : SCREENHEIGHT - 32;
-    if (!zoom_allowed || viewwidth > SCREENWIDTH/2) {
+    if (!zoom_allowed || ST_LOWRES_SCALAR == 1) {
         for (short line = 0; line < splitline; line++ ) {
             c2p_1x_lorez(out + 160*line, in + 320*line, 320, c2p_table[line&3]);
         }
-    } else if(viewwidth > SCREENWIDTH/4) {
+    } else if (ST_LOWRES_SCALAR == 2) {
         // 2x zoom
         short maxline = splitline;
-#if ST_LOWRES_2X
-        if (viewwidth * 2 == SCREENWIDTH && viewheight * 2 == SCREENHEIGHT) {
+        if (viewwidth * ST_LOWRES_SCALAR == SCREENWIDTH && viewheight * ST_LOWRES_SCALAR == SCREENHEIGHT) {
             maxline = SCREENHEIGHT;
             for (short line = 0; line < maxline; line++ ) {
                 short src_line = (short)(viewwindowy + (line >> 1));
@@ -572,18 +572,61 @@ static void c2p_screen_lorez(unsigned char *out, const unsigned char *in) {
                 );
             }
         }
-#else
-        for (short line = 0; line < maxline; line++ ) {
-            short src_line = (short)(viewwindowy + (line >> 1));
-            c2p_2x_lorez(out + 160*line, in + SCREENWIDTH * src_line + viewwindowx, viewwidth, c2p_2x_table[line&3]);
-        }
-#endif
     } else {
-        // 4x zoom
-        for (short line = 0; line < splitline; line++ ) {
-            short phase = line & 3;
+        // 4x zoom using planar 4x table.
+        short src_w = (short)(viewwidth & ~3);
+        if (src_w < 4)
+            return;
+        short scaled_w = (short)(src_w * 4);
+        short scaled_h = (short)(viewheight * 4);
+        short out_x = (short)viewwindowx;
+        short out_y = (short)viewwindowy;
+
+        if (out_x < 0) out_x = 0;
+        if (out_y < 0) out_y = 0;
+        if (out_x + scaled_w > SCREENWIDTH) {
+            short max_src = (short)((SCREENWIDTH - out_x) / 4);
+            max_src &= ~3;
+            if (max_src < 4)
+                return;
+            src_w = max_src;
+            scaled_w = (short)(src_w * 4);
+        }
+        if (scaled_h > splitline - out_y)
+            scaled_h = (short)(splitline - out_y);
+        if (scaled_h <= 0)
+            return;
+
+        if (out_y > 0) {
+            c2p_screen_rect(out, in, 0, out_y, 0, SCREENWIDTH);
+        }
+        {
+            short bottom_y = (short)(out_y + scaled_h);
+            if (bottom_y < splitline) {
+                c2p_screen_rect(out, in, bottom_y, splitline, 0, SCREENWIDTH);
+            }
+            if (out_x > 0) {
+                c2p_screen_rect(out, in, out_y, bottom_y, 0, out_x);
+            }
+            {
+                short right_x = (short)(out_x + scaled_w);
+                if (right_x < SCREENWIDTH) {
+                    c2p_screen_rect(out, in, out_y, bottom_y, right_x, SCREENWIDTH);
+                }
+            }
+        }
+
+        for (short line = 0; line < scaled_h; line++ ) {
+            short phase = (short)(line & 3);
             if (phase < 2) {
-                c2p_4x_lorez(out + 160*line, in + SCREENWIDTH*(63 + line/4) + 120, 80, c2p_4x_table[phase]);
+                short dst_line = (short)(out_y + line);
+                short src_line = (short)(viewwindowy + (line >> 2));
+                c2p_4x_lorez(
+                    out + 160 * dst_line + (out_x >> 1),
+                    in + SCREENWIDTH * src_line + viewwindowx,
+                    src_w,
+                    c2p_4x_table[phase]
+                );
             }
         }
     }

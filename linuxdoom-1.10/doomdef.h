@@ -109,10 +109,14 @@ typedef enum
 #define SCREENHEIGHT 200
 //(int)(SCREEN_MUL*BASE_WIDTH*INV_ASPECT_RATIO) //200
 
-// Atari ST: render at 160x100 and scale to 320x200 output.
-#define ST_LOWRES_2X 1
-#define ST_LOWRES_WIDTH 120
+// Atari ST: render low-res and scale to output. Supported: 1, 2, 4.
+#define ST_LOWRES_SCALAR 2
+#define ST_LOWRES_WIDTH 128
 #define ST_LOWRES_HEIGHT 64
+
+#if (ST_LOWRES_SCALAR != 1) && (ST_LOWRES_SCALAR != 2) && (ST_LOWRES_SCALAR != 4)
+#error "ST_LOWRES_SCALAR must be 1, 2, or 4."
+#endif
 
 // The maximum number of players, multiplayer/networking.
 #define MAXPLAYERS 4
