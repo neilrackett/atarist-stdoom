@@ -324,6 +324,8 @@ void D_Display (void)
 
     // menus go directly to the screen
     M_Drawer ();          // menu is drawn even on top of everything
+    if (gamestate == GS_LEVEL && gametic)
+	HU_FpsDrawer();
     NetUpdate ();         // send out any new accumulation
 
 
@@ -352,6 +354,8 @@ void D_Display (void)
 			       , 0, 0, SCREENWIDTH, SCREENHEIGHT, tics);
 	I_UpdateNoBlit ();
 	M_Drawer ();                            // menu is drawn even on top of wipes
+	if (gamestate == GS_LEVEL && gametic)
+	    HU_FpsDrawer();
 	I_FinishUpdate ();                      // page flip or blit buffer
     } while (!done);
 }

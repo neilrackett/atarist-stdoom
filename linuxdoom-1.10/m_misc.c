@@ -196,6 +196,7 @@ extern int	viewheight;
 
 extern int	mouseSensitivity;
 extern int	showMessages;
+extern int	showFps;
 
 extern int	detailLevel;
 
@@ -237,6 +238,7 @@ default_t	defaults[] =
     {"sfx_volume",&snd_SfxVolume, 8},
     {"music_volume",&snd_MusicVolume, 8},
     {"show_messages",&showMessages, 1},
+    {"show_fps",&showFps, 1},
     
 
 #ifdef NORMALUNIX
@@ -276,7 +278,7 @@ default_t	defaults[] =
     {"joyb_use",&joybuse,3},
     {"joyb_speed",&joybspeed,2},
 
-    {"screenblocks",&screenblocks, 5},
+    {"screenblocks",&screenblocks, 8},
     {"detaillevel",&detailLevel, 0},
 
     {"snd_channels",&numChannels, 3},
@@ -530,5 +532,3 @@ void M_ScreenShot (void)
 	
     players[consoleplayer].message = "screen shot";
 }
-
-

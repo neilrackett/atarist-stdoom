@@ -37,6 +37,7 @@ rcsid[] = "$Id: i_x.c,v 1.6 1997/02/03 22:45:10 b1 Exp $";
 #include "d_main.h"
 #include "w_wad.h"
 #include "z_zone.h"
+#include "hu_stuff.h"
 
 #include "doomdef.h"
 
@@ -313,6 +314,12 @@ void I_FinishUpdate (void)
         );
     }
     c2p_statusbar(st_screen, screens[0], st_dirtybox[BOXBOTTOM], st_dirtybox[BOXTOP] + 1, st_dirtybox[BOXLEFT], st_dirtybox[BOXRIGHT] + 1);
+    if (drawview) {
+        int x, y, w, h;
+        if (HU_FpsRect(&x, &y, &w, &h)) {
+            c2p_screen_rect(st_screen, screens[0], y, y + h, x, x + w);
+        }
+    }
 }
 
 

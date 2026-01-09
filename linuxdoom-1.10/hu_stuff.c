@@ -24,6 +24,8 @@ static const char
 rcsid[] = "$Id: hu_stuff.c,v 1.4 1997/02/03 16:47:52 b1 Exp $";
 
 #include <ctype.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "doomdef.h"
 
@@ -36,6 +38,9 @@ rcsid[] = "$Id: hu_stuff.c,v 1.4 1997/02/03 16:47:52 b1 Exp $";
 #include "w_wad.h"
 
 #include "s_sound.h"
+#include "i_system.h"
+#include "m_misc.h"
+#include "v_video.h"
 
 #include "doomstat.h"
 
@@ -103,9 +108,96 @@ static hu_stext_t	w_message;
 static int		message_counter;
 
 extern int		showMessages;
+extern int		showFps;
 extern boolean		automapactive;
 
 static boolean		headsupactive = false;
+static int		fps_last_x = 0;
+static int		fps_last_y = 0;
+static int		fps_last_w = 0;
+static int		fps_last_h = 0;
+static boolean		fps_rect_valid = false;
+static byte		fps_bg[80 * 16];
+
+static int HU_TextWidth(const char *string)
+{
+    int width = 0;
+    int c;
+
+    while (*string)
+    {
+	c = toupper(*string) - HU_FONTSTART;
+	string++;
+	if (c < 0 || c >= HU_FONTSIZE)
+	{
+	    width += 4;
+	    continue;
+	}
+	width += SHORT(hu_font[c]->width);
+    }
+
+    return width;
+}
+
+static void HU_DrawFps(void)
+{
+    static int fps_lasttime = 0;
+    static int fps_frames = 0;
+    static int fps_value = 0;
+    const int pad = 2;
+    int now = I_GetTime();
+    int elapsed;
+    char fpsbuf[12];
+    int width;
+    int x;
+    int height;
+    int x_bg;
+    int y_bg;
+    int w_bg;
+    int h_bg;
+
+    if (!fps_lasttime)
+	fps_lasttime = now;
+
+    fps_frames++;
+    elapsed = now - fps_lasttime;
+    if (elapsed >= TICRATE)
+    {
+	fps_value = (fps_frames * TICRATE + (elapsed / 2)) / elapsed;
+	fps_frames = 0;
+	fps_lasttime = now;
+    }
+
+    sprintf(fpsbuf, "FPS %d", fps_value);
+    width = HU_TextWidth(fpsbuf);
+    height = SHORT(hu_font[0]->height);
+    x = SCREENWIDTH - width - 2;
+
+    x_bg = x - pad;
+    y_bg = 2 - pad;
+    if (x_bg < 0)
+	x_bg = 0;
+    if (y_bg < 0)
+	y_bg = 0;
+    w_bg = width + pad * 2;
+    h_bg = height + pad * 2;
+    if (x_bg + w_bg > SCREENWIDTH)
+	w_bg = SCREENWIDTH - x_bg;
+    if (y_bg + h_bg > SCREENHEIGHT)
+	h_bg = SCREENHEIGHT - y_bg;
+    if (w_bg > 0 && h_bg > 0)
+    {
+	memset(fps_bg, 0, w_bg * h_bg);
+	V_DrawBlock(x_bg, y_bg, 0, w_bg, h_bg, fps_bg);
+    }
+
+    M_DrawText(x, 2, true, fpsbuf);
+    fps_last_x = x_bg;
+    fps_last_y = y_bg;
+    fps_last_w = w_bg;
+    fps_last_h = h_bg;
+    fps_rect_valid = true;
+}
 
 //
 // Builtin map names.
@@ -491,6 +583,25 @@ void HU_Drawer(void)
     if (automapactive)
 	HUlib_drawTextLine(&w_title, false);
 
+}
+
+void HU_FpsDrawer(void)
+{
+    if (showFps)
+	HU_DrawFps();
+    else
+	fps_rect_valid = false;
+}
+
+boolean HU_FpsRect(int *x, int *y, int *w, int *h)
+{
+    if (!showFps || !fps_rect_valid)
+	return false;
+    *x = fps_last_x;
+    *y = fps_last_y;
+    *w = fps_last_w;
+    *h = fps_last_h;
+    return true;
 }
 
 void HU_Erase(void)

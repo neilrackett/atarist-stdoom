@@ -53,6 +53,7 @@ rcsid[] = "$Id: m_menu.c,v 1.7 1997/02/03 22:45:10 b1 Exp $";
 
 #include "m_argv.h"
 #include "m_swap.h"
+#include "m_misc.h"
 
 #include "s_sound.h"
 
@@ -77,6 +78,7 @@ int			mouseSensitivity;       // has default
 
 // Show messages has default, 0 = off, 1 = on
 int			showMessages;
+int			showFps;
 	
 
 // Blocky mode, has default, 0 = high, 1 = normal
@@ -199,6 +201,7 @@ void M_ChangeDetail(int choice);
 void M_SizeDisplay(int choice);
 void M_StartGame(int choice);
 void M_Sound(int choice);
+void M_ChangeFps(int choice);
 
 void M_FinishReadThis(int choice);
 void M_LoadSelect(int choice);
@@ -340,6 +343,7 @@ enum
 {
     endgame,
     messages,
+    fps,
     detail,
     scrnsize,
     option_empty1,
@@ -353,6 +357,7 @@ menuitem_t OptionsMenu[]=
 {
     {1,"M_ENDGAM",	M_EndGame,'e'},
     {1,"M_MESSG",	M_ChangeMessages,'m'},
+    {1,"",		M_ChangeFps,'f'},
     {1,"M_DETAIL",	M_ChangeDetail,'g'},
     {2,"M_SCRNSZ",	M_SizeDisplay,'s'},
     {-1,"",0},
@@ -958,6 +963,14 @@ void M_DrawOptions(void)
     V_DrawPatchDirect (OptionsDef.x + 120,OptionsDef.y+LINEHEIGHT*messages,0,
 		       W_CacheLumpName(msgNames[showMessages],PU_CACHE));
 
+    M_DrawText(OptionsDef.x,
+	       OptionsDef.y+LINEHEIGHT*fps+4,
+	       true,
+	       "FPS");
+
+    V_DrawPatchDirect (OptionsDef.x + 120,OptionsDef.y+LINEHEIGHT*fps,0,
+		       W_CacheLumpName(msgNames[showFps],PU_CACHE));
+
     M_DrawThermo(OptionsDef.x,OptionsDef.y+LINEHEIGHT*(mousesens+1),
 		 10,mouseSensitivity);
 	
@@ -987,6 +1000,13 @@ void M_ChangeMessages(int choice)
 	players[consoleplayer].message = MSGON ;
 
     message_dontfuckwithme = true;
+}
+
+void M_ChangeFps(int choice)
+{
+    // warning: unused parameter `int choice'
+    choice = 0;
+    showFps = 1 - showFps;
 }
 
 
@@ -1890,4 +1910,3 @@ void M_Init (void)
     }
     
 }
-
