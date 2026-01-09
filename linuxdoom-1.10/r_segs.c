@@ -120,6 +120,8 @@ R_RenderMaskedSegRange
     texnum = texturetranslation[curline->sidedef->midtexture];
 	
     lightnum = (frontsector->lightlevel >> LIGHTSEGSHIFT)+extralight;
+    if (r_light_reduce)
+	lightnum &= ~1;
 
     if (curline->v1->y == curline->v2->y)
 	lightnum--;
@@ -167,6 +169,8 @@ R_RenderMaskedSegRange
 	    if (!fixedcolormap)
 	    {
 		index = spryscale>>LIGHTSCALESHIFT;
+		if (r_light_reduce)
+		    index &= ~1;
 
 		if (index >=  MAXLIGHTSCALE )
 		    index = MAXLIGHTSCALE-1;
@@ -281,6 +285,9 @@ void R_RenderSegLoop (void)
 	    texturecolumn >>= FRACBITS;
 	    // calculate lighting
 	    index = rw_scale>>LIGHTSCALESHIFT;
+
+	    if (r_light_reduce)
+		index &= ~1;
 
 	    if (index >=  MAXLIGHTSCALE )
 		index = MAXLIGHTSCALE-1;
@@ -426,6 +433,13 @@ R_StoreWallRange
     hyp = R_PointToDist (curline->v1->x, curline->v1->y);
     sineval = finesine[distangle>>ANGLETOFINESHIFT];
     rw_distance = FixedScale32 (hyp, sineval);
+
+    if (r_maxdrawdist > 0)
+    {
+	fixed_t maxdist = r_maxdrawdist << FRACBITS;
+	if (rw_distance > maxdist)
+	    return;
+    }
 		
 	
     ds_p->x1 = rw_x = start;
@@ -761,4 +775,3 @@ R_StoreWallRange
     }
     ds_p++;
 }
-

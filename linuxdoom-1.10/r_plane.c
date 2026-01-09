@@ -426,6 +426,8 @@ void R_DrawPlanes (void)
 	
 	planeheight = abs(pl->height-viewz);
 	light = (pl->lightlevel >> LIGHTSEGSHIFT)+extralight;
+	if (r_light_reduce)
+	    light &= ~1;
 
 	if (light >= LIGHTLEVELS)
 	    light = LIGHTLEVELS-1;

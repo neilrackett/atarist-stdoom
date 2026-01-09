@@ -41,6 +41,11 @@ Language_t   language = english;
 // Set if homebrew PWAD stuff has been added.
 boolean	modifiedgame;
 
+int	r_maxdrawdist;
+int	r_light_reduce;
+int	r_sprite_clip;
+int	r_cull_bsp;
+int	r_cull_lines;
 
 
 

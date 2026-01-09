@@ -53,6 +53,32 @@ sector_t*	backsector;
 drawseg_t	drawsegs[MAXDRAWSEGS];
 drawseg_t*	ds_p;
 
+extern int	r_maxdrawdist;
+extern int	r_cull_bsp;
+extern int	r_cull_lines;
+
+static boolean R_BBoxTooFar(const fixed_t* bbox)
+{
+    fixed_t maxdist;
+    fixed_t dx = 0;
+    fixed_t dy = 0;
+
+    if (r_maxdrawdist <= 0)
+	return false;
+
+    maxdist = r_maxdrawdist << FRACBITS;
+    if (viewx < bbox[BOXLEFT])
+	dx = bbox[BOXLEFT] - viewx;
+    else if (viewx > bbox[BOXRIGHT])
+	dx = viewx - bbox[BOXRIGHT];
+
+    if (viewy < bbox[BOXBOTTOM])
+	dy = bbox[BOXBOTTOM] - viewy;
+    else if (viewy > bbox[BOXTOP])
+	dy = viewy - bbox[BOXTOP];
+
+    return (dx > maxdist || dy > maxdist);
+}
 
 void
 R_StoreWallRange
@@ -287,6 +313,9 @@ void R_AddLine (seg_t*	line)
     
     curline = line;
 
+    if (r_cull_lines && R_BBoxTooFar(line->linedef->bbox))
+	return;
+
     // OPTIMIZE: quickly reject orthogonal back sides.
     // Imagine the coordinate system like this:
     //
@@ -439,6 +468,9 @@ boolean R_CheckBBox (fixed_t*	bspcoord)
     short		sx1;
     short		sx2;
     
+    if (r_cull_bsp && R_BBoxTooFar(bspcoord))
+	return false;
+
     // Find the corners of the box
     // that define the edges from current viewpoint.
     if (viewx <= bspcoord[BOXLEFT])
@@ -614,5 +646,4 @@ void R_RenderBSPNode (int bspnum)
     if (R_CheckBBox (bsp->bbox[side^1]))	
 	R_RenderBSPNode (bsp->children[side^1]);
 }
-
 

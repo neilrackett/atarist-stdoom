@@ -435,7 +435,33 @@ R_DrawVisSprite
     int			tc_min;
     int			tc_max;
 	
-	
+    if (r_sprite_clip)
+    {
+	int x;
+	boolean any = false;
+	for (x = vis->x1; x <= vis->x2; x += 2)
+	{
+	    if (mceilingclip[x] < mfloorclip[x] - 1)
+	    {
+		any = true;
+		break;
+	    }
+	}
+	if (!any)
+	{
+	    for (x = vis->x1 + 1; x <= vis->x2; x += 2)
+	    {
+		if (mceilingclip[x] < mfloorclip[x] - 1)
+		{
+		    any = true;
+		    break;
+		}
+	    }
+	}
+	if (!any)
+	    return;
+    }
+
     patch = W_CacheLumpNum (vis->patch+firstspritelump, PU_CACHE);
     patchbase = (byte *)patch;
     patchwidth = SHORT(patch->width);
@@ -508,6 +534,9 @@ void R_ProjectSprite (mobj_t* thing)
     
     fixed_t		tx;
     fixed_t		tz;
+    fixed_t		dx;
+    fixed_t		dy;
+    fixed_t		maxdist;
 
     fixed_t		xscale;
     
@@ -528,6 +557,17 @@ void R_ProjectSprite (mobj_t* thing)
     angle_t		ang;
     fixed_t		iscale;
     
+    if (r_maxdrawdist > 0)
+    {
+	maxdist = r_maxdrawdist << FRACBITS;
+	dx = thing->x - viewx;
+	dy = thing->y - viewy;
+	if (dx < 0) dx = -dx;
+	if (dy < 0) dy = -dy;
+	if (dx > maxdist || dy > maxdist)
+	    return;
+    }
+
     // transform the origin point
     tr_x = thing->x - viewx;
     tr_y = thing->y - viewy;
@@ -802,6 +842,9 @@ void R_DrawPlayerSprites (void)
     lightnum =
 	(viewplayer->mo->subsector->sector->lightlevel >> LIGHTSEGSHIFT) 
 	+extralight;
+
+    if (r_light_reduce)
+	lightnum &= ~1;
 
     if (lightnum < 0)		
 	spritelights = scalelight[0];

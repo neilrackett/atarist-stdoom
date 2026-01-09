@@ -258,6 +258,11 @@ extern  int             mouseSensitivity;
 extern  boolean         singletics;	
 
 extern  int             bodyqueslot;
+extern	int		r_maxdrawdist;
+extern	int		r_light_reduce;
+extern	int		r_sprite_clip;
+extern	int		r_cull_bsp;
+extern	int		r_cull_lines;
 
 
 

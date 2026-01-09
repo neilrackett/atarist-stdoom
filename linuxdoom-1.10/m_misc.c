@@ -201,6 +201,11 @@ extern int	showFps;
 extern int	detailLevel;
 
 extern int	screenblocks;
+extern int	r_maxdrawdist;
+extern int	r_light_reduce;
+extern int	r_sprite_clip;
+extern int	r_cull_bsp;
+extern int	r_cull_lines;
 
 extern int	showMessages;
 
@@ -280,6 +285,11 @@ default_t	defaults[] =
 
     {"screenblocks",&screenblocks, 4},
     {"detaillevel",&detailLevel, 0},
+    {"r_maxdrawdist",&r_maxdrawdist, 1536},
+    {"r_light_reduce",&r_light_reduce, 1},
+    {"r_sprite_clip",&r_sprite_clip, 1},
+    {"r_cull_bsp",&r_cull_bsp, 1},
+    {"r_cull_lines",&r_cull_lines, 1},
 
     {"snd_channels",&numChannels, 3},
 

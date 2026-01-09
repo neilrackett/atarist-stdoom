@@ -28,6 +28,7 @@ static const char
 rcsid[] = "$Id: r_data.c,v 1.4 1997/02/03 16:47:55 b1 Exp $";
 
 #include "i_system.h"
+#include <string.h>
 #include "z_zone.h"
 
 #include "m_swap.h"
@@ -143,6 +144,7 @@ texture_t**	textures;
 
 
 int*			texturewidthmask;
+static byte***		texturecolumnptrs;
 // needed for texture pegging
 fixed_t*		textureheight;		
 int*			texturecompositesize;
@@ -386,18 +388,33 @@ R_GetColumn
 {
     int		lump;
     int		ofs;
+    byte*	ptr;
 	
     col &= texturewidthmask[tex];
+    if (texturecolumnptrs)
+    {
+	ptr = texturecolumnptrs[tex][col];
+	if (ptr)
+	    return ptr;
+    }
     lump = texturecolumnlump[tex][col];
     ofs = texturecolumnofs[tex][col];
     
     if (lump > 0)
-	return (byte *)W_CacheLumpNum(lump,PU_CACHE)+ofs;
+    {
+	ptr = (byte *)W_CacheLumpNum(lump,PU_CACHE)+ofs;
+	if (texturecolumnptrs)
+	    texturecolumnptrs[tex][col] = ptr;
+	return ptr;
+    }
 
     if (!texturecomposite[tex])
 	R_GenerateComposite (tex);
 
-    return texturecomposite[tex] + ofs;
+    ptr = texturecomposite[tex] + ofs;
+    if (texturecolumnptrs)
+	texturecolumnptrs[tex][col] = ptr;
+    return ptr;
 }
 
 
@@ -556,6 +573,14 @@ void R_InitTextures (void)
 	textureheight[i] = texture->height<<FRACBITS;
 		
 	totalwidth += texture->width;
+    }
+
+    texturecolumnptrs = Z_Malloc (numtextures * sizeof(*texturecolumnptrs), PU_STATIC, 0);
+    for (i = 0; i < numtextures; i++)
+    {
+	int width = textures[i]->width;
+	texturecolumnptrs[i] = Z_Malloc (width * sizeof(byte*), PU_STATIC, 0);
+	memset(texturecolumnptrs[i], 0, width * sizeof(byte*));
     }
 
     Z_Free (maptex1);
@@ -843,7 +868,4 @@ void R_PrecacheLevel (void)
 	}
     }
 }
-
-
-
 
