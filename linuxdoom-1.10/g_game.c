@@ -1589,7 +1589,7 @@ void G_DoPlayDemo (void)
     byte version = *demo_p++;
     if ( version != VERSION)
     {
-      fprintf( stderr, "Demo is from a different game version!\n Version read is %d\n", version);
+      //fprintf( stderr, "Demo is from a different game version!\n Version read is %d\n", version);
       //gameaction = ga_nothing;
       //return;
     }

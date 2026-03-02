@@ -3,6 +3,92 @@
 
 #pragma GCC diagnostic ignored "-Wunused-value"
 
+#ifndef C__MCH
+#define C__MCH 0x5f4d4348L /* '_MCH' */
+#endif
+
+#define MCH_MEGA_STE   0x00010010L
+
+#define MEGASTE_CTRL_WORD_ADDR 0xffff8e20UL
+#define MEGASTE_CTRL_BYTE_ADDR 0xffff8e21UL
+#define MEGASTE_CTRL_16MHZ_CACHE 0x03
+
+static int megaste_ctrl_saved_valid = 0;
+static unsigned char megaste_ctrl_saved = 0;
+
+int atari_is_megaste_16mhz_cache(void)
+{
+    static int cached = -1;
+    long mch_cookie = 0;
+
+    if (cached >= 0)
+        return cached;
+
+    cached = 0;
+    if (C_FOUND != Getcookie(C__MCH, &mch_cookie))
+        return cached;
+    if (mch_cookie != MCH_MEGA_STE)
+        return cached;
+
+    {
+        volatile unsigned char *ctrlb = (volatile unsigned char *)MEGASTE_CTRL_BYTE_ADDR;
+        if ((*ctrlb & MEGASTE_CTRL_16MHZ_CACHE) == MEGASTE_CTRL_16MHZ_CACHE)
+            cached = 1;
+    }
+
+    return cached;
+}
+
+void atari_enable_megaste_turbo(void)
+{
+    long mch_cookie = 0;
+    if (C_FOUND != Getcookie(C__MCH, &mch_cookie))
+        return;
+    if (mch_cookie != MCH_MEGA_STE)
+        return;
+
+    {
+        volatile unsigned short *ctrlw = (volatile unsigned short *)MEGASTE_CTRL_WORD_ADDR;
+        volatile unsigned char *ctrlb = (volatile unsigned char *)MEGASTE_CTRL_BYTE_ADDR;
+
+        if (!megaste_ctrl_saved_valid) {
+            megaste_ctrl_saved = *ctrlb;
+            megaste_ctrl_saved_valid = 1;
+        }
+
+        /*
+         * Mega STe CPU speed/cache register:
+         * bit0: 0=8MHz, 1=16MHz
+         * bit1: 0=cache off, 1=cache on
+         */
+        *ctrlw = 0xffff;
+        *ctrlb = MEGASTE_CTRL_16MHZ_CACHE;
+
+        Cconws("Mega STe: ");
+        if ((*ctrlb & MEGASTE_CTRL_16MHZ_CACHE) == MEGASTE_CTRL_16MHZ_CACHE) {
+            Cconws("16MHz + cache on\r\n");
+            (void)atari_is_megaste_16mhz_cache();
+        } else {
+            Cconws("could not lock 16MHz+cache\r\n");
+        }
+    }
+}
+
+void atari_restore_megaste_turbo(void)
+{
+    long mch_cookie = 0;
+    volatile unsigned char *ctrlb = (volatile unsigned char *)MEGASTE_CTRL_BYTE_ADDR;
+
+    if (!megaste_ctrl_saved_valid)
+        return;
+    if (C_FOUND != Getcookie(C__MCH, &mch_cookie))
+        return;
+    if (mch_cookie != MCH_MEGA_STE)
+        return;
+
+    *ctrlb = megaste_ctrl_saved;
+}
+
 // This function is mainly for suppressing mintlib's CPU and FPU detection, but we can also print some 
 void _checkcpu() {
     long cookie = 0;

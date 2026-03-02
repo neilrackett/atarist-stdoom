@@ -18,110 +18,122 @@ LDLIBS2F=./deps/68020-60.68881.fastcall/libm.a
 
 # subdirectory for objects
 O=atari
+OBJDIR=$(O)/obj
+BUILDDIR=$(O)/build
+
+EXT=.TOS
+TARGET=STDOOM$(EXT)
+TARGET20=STDOOM20$(EXT)
+TARGET2F=STDOOM2F$(EXT)
 
 # not too sophisticated dependency
 OBJS=				\
-		$(O)/atari_c2p.o		\
-		$(O)/atari_checkcpu.o	\
-		$(O)/atari_ym.o		\
-		$(O)/doomdef.o		\
-		$(O)/doomstat.o		\
-		$(O)/dstrings.o		\
-		$(O)/i_system.o		\
-		$(O)/i_sound.o		\
-		$(O)/i_video.o		\
-		$(O)/i_net.o			\
-		$(O)/tables.o			\
-		$(O)/f_finale.o		\
-		$(O)/f_wipe.o 		\
-		$(O)/d_main.o			\
-		$(O)/d_net.o			\
-		$(O)/d_items.o		\
-		$(O)/g_game.o			\
-		$(O)/m_menu.o			\
-		$(O)/m_misc.o			\
-		$(O)/m_argv.o  		\
-		$(O)/m_bbox.o			\
-		$(O)/m_fixed.o		\
-		$(O)/m_swap.o			\
-		$(O)/m_cheat.o		\
-		$(O)/m_random.o		\
-		$(O)/am_map.o			\
-		$(O)/p_ceilng.o		\
-		$(O)/p_doors.o		\
-		$(O)/p_enemy.o		\
-		$(O)/p_floor.o		\
-		$(O)/p_inter.o		\
-		$(O)/p_lights.o		\
-		$(O)/p_map.o			\
-		$(O)/p_maputl.o		\
-		$(O)/p_plats.o		\
-		$(O)/p_pspr.o			\
-		$(O)/p_setup.o		\
-		$(O)/p_sight.o		\
-		$(O)/p_spec.o			\
-		$(O)/p_switch.o		\
-		$(O)/p_mobj.o			\
-		$(O)/p_telept.o		\
-		$(O)/p_tick.o			\
-		$(O)/p_saveg.o		\
-		$(O)/p_user.o			\
-		$(O)/r_bsp.o			\
-		$(O)/r_data.o			\
-		$(O)/r_draw.o			\
-		$(O)/r_main.o			\
-		$(O)/r_plane.o		\
-		$(O)/r_segs.o			\
-		$(O)/r_sky.o			\
-		$(O)/r_things.o		\
-		$(O)/w_wad.o			\
-		$(O)/wi_stuff.o		\
-		$(O)/v_video.o		\
-		$(O)/st_lib.o			\
-		$(O)/st_stuff.o		\
-		$(O)/hu_stuff.o		\
-		$(O)/hu_lib.o			\
-		$(O)/s_sound.o		\
-		$(O)/z_zone.o			\
-		$(O)/info.o				\
-		$(O)/sounds.o		\
-		$(O)/i_main.o
+		$(OBJDIR)/atari_c2p.o		\
+		$(OBJDIR)/atari_checkcpu.o	\
+		$(OBJDIR)/atari_ym.o		\
+		$(OBJDIR)/doomdef.o		\
+		$(OBJDIR)/doomstat.o		\
+		$(OBJDIR)/dstrings.o		\
+		$(OBJDIR)/i_system.o		\
+		$(OBJDIR)/i_sound.o		\
+		$(OBJDIR)/i_video.o		\
+		$(OBJDIR)/i_net.o			\
+		$(OBJDIR)/tables.o			\
+		$(OBJDIR)/f_finale.o		\
+		$(OBJDIR)/f_wipe.o 		\
+		$(OBJDIR)/d_main.o			\
+		$(OBJDIR)/d_net.o			\
+		$(OBJDIR)/d_items.o		\
+		$(OBJDIR)/g_game.o			\
+		$(OBJDIR)/m_menu.o			\
+		$(OBJDIR)/m_misc.o			\
+		$(OBJDIR)/m_argv.o  		\
+		$(OBJDIR)/m_bbox.o			\
+		$(OBJDIR)/m_fixed.o		\
+		$(OBJDIR)/m_swap.o			\
+		$(OBJDIR)/m_cheat.o		\
+		$(OBJDIR)/m_random.o		\
+		$(OBJDIR)/am_map.o			\
+		$(OBJDIR)/p_ceilng.o		\
+		$(OBJDIR)/p_doors.o		\
+		$(OBJDIR)/p_enemy.o		\
+		$(OBJDIR)/p_floor.o		\
+		$(OBJDIR)/p_inter.o		\
+		$(OBJDIR)/p_lights.o		\
+		$(OBJDIR)/p_map.o			\
+		$(OBJDIR)/p_maputl.o		\
+		$(OBJDIR)/p_plats.o		\
+		$(OBJDIR)/p_pspr.o			\
+		$(OBJDIR)/p_setup.o		\
+		$(OBJDIR)/p_sight.o		\
+		$(OBJDIR)/p_spec.o			\
+		$(OBJDIR)/p_switch.o		\
+		$(OBJDIR)/p_mobj.o			\
+		$(OBJDIR)/p_telept.o		\
+		$(OBJDIR)/p_tick.o			\
+		$(OBJDIR)/p_saveg.o		\
+		$(OBJDIR)/p_user.o			\
+		$(OBJDIR)/r_bsp.o			\
+		$(OBJDIR)/r_data.o			\
+		$(OBJDIR)/r_draw.o			\
+		$(OBJDIR)/r_main.o			\
+		$(OBJDIR)/r_plane.o		\
+		$(OBJDIR)/r_segs.o			\
+		$(OBJDIR)/r_sky.o			\
+		$(OBJDIR)/r_things.o		\
+		$(OBJDIR)/w_wad.o			\
+		$(OBJDIR)/wi_stuff.o		\
+		$(OBJDIR)/v_video.o		\
+		$(OBJDIR)/st_lib.o			\
+		$(OBJDIR)/st_stuff.o		\
+		$(OBJDIR)/hu_stuff.o		\
+		$(OBJDIR)/hu_lib.o			\
+		$(OBJDIR)/s_sound.o		\
+		$(OBJDIR)/z_zone.o			\
+		$(OBJDIR)/info.o				\
+		$(OBJDIR)/sounds.o		\
+		$(OBJDIR)/i_main.o
 OBJS20=$(OBJS:%.o=%.20.o)
 OBJS2F=$(OBJS:%.o=%.2f.o)
 
-all:	 $(O)/stdoom.tos $(O)/stdoom20.tos $(O)/stdoom2f.tos
+all:	 $(BUILDDIR)/$(TARGET) # $(BUILDDIR)/$(TARGET20) $(BUILDDIR)/$(TARGET2F)
 
 clean:
-	rm -f $(O)/stdoom.tos $(O)/stdoom20.tos $(O)/stdoom2f.tos $(O)/*.o $(O)/*.map
+	rm -f $(BUILDDIR)/$(TARGET) $(BUILDDIR)/$(TARGET20) $(BUILDDIR)/$(TARGET2F) $(BUILDDIR)/*.map $(OBJDIR)/*.o $(OBJDIR)/*.s
 
-$(O)/stdoom.tos:	$(OBJS)
+$(BUILDDIR)/$(TARGET):	$(OBJS) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(OBJS) -o $@ $(LDLIBS)
 #	$(CC) $(filter-out -mfastcall,$(CFLAGS)) $(OBJS) -o $@ $(LDLIBS)
 
-$(O)/stdoom20.tos:	$(OBJS20)
+$(BUILDDIR)/$(TARGET20):	$(OBJS20) | $(BUILDDIR)
 	$(CC) $(CFLAGS20) $(OBJS20) -o $@ $(LDLIBS20)
 #	$(CC) $(filter-out -mfastcall,$(CFLAGS20)) $(OBJS20) -o $@ $(LDLIBS20)
 
-$(O)/stdoom2f.tos:	$(OBJS2F)
+$(BUILDDIR)/$(TARGET2F):	$(OBJS2F) | $(BUILDDIR)
 	$(CC) $(CFLAGS2F) $(OBJS2F) -o $@ $(LDLIBS2F)
 #	$(CC) $(filter-out -mfastcall,$(CFLAGS2F)) $(OBJS2F) -o $@ $(LDLIBS2F)
 
-$(O)/%.2f.o:	%.c
+$(OBJDIR)/%.2f.o:	%.c | $(OBJDIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS2F) -c $< -o $@
 
-$(O)/%.20.o:	%.c
+$(OBJDIR)/%.20.o:	%.c | $(OBJDIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS20) -c $< -o $@
 
-$(O)/%.o:	%.c
+$(OBJDIR)/%.o:	%.c | $(OBJDIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 # Rule for compiling to assembly on demand
-$(O)/%.2f.s: %.c
+$(OBJDIR)/%.2f.s: %.c | $(OBJDIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS2F) -c $< -S -fverbose-asm -o $@
-$(O)/%.20.s: %.c
+
+$(OBJDIR)/%.20.s: %.c | $(OBJDIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS20) -c $< -S -fverbose-asm -o $@
-$(O)/%.s: %.c
+	
+$(OBJDIR)/%.s: %.c | $(OBJDIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -S -fverbose-asm -o $@
+
+$(OBJDIR) $(BUILDDIR):
+	mkdir -p $@
 
 #############################################################
 #

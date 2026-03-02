@@ -46,6 +46,11 @@ rcsid[] = "$Id: m_bbox.c,v 1.1 1997/02/03 22:45:10 b1 Exp $";
 #endif
 #include "i_system.h"
 
+void atari_enable_megaste_turbo(void);
+void atari_restore_megaste_turbo(void);
+
+static long old_super_stack = 0;
+static int super_enabled = 0;
 
 
 
@@ -115,8 +120,12 @@ int  I_GetTime (void)
 //
 void I_Init (void)
 {
+    long super_ret;
     printf("I_Init: Enabling supervisor mode.\n");
-    Super(0L);
+    super_ret = Super(0L);
+    old_super_stack = super_ret;
+    super_enabled = 1;
+    atari_enable_megaste_turbo();
     I_InitSound();
     I_InitMusic();
     //  I_InitGraphics();
@@ -132,6 +141,9 @@ void I_Quit (void)
     I_ShutdownMusic();
     M_SaveDefaults ();
     I_ShutdownGraphics();
+    atari_restore_megaste_turbo();
+    if (super_enabled && old_super_stack)
+        Super((void *)old_super_stack);
     exit(0);
 }
 
@@ -190,6 +202,9 @@ void I_Error (char *error, ...)
 
     D_QuitNetGame ();
     I_ShutdownGraphics();
+    atari_restore_megaste_turbo();
+    if (super_enabled && old_super_stack)
+        Super((void *)old_super_stack);
     getchar();
     exit(-1);
 }

@@ -1,2 +1,4 @@
 .DS_Store
-/linuxdoom-1.10/atari/*.o
+*.o
+build/
+obj/
