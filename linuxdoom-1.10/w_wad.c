@@ -35,8 +35,54 @@ rcsid[] = "$Id: w_wad.c,v 1.5 1997/02/03 16:47:57 b1 Exp $";
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <alloca.h>
+#include <errno.h>
+#include <mint/osbind.h>
 #define O_BINARY		0
 #endif
+
+//
+// GEMDOS-backed file I/O.
+//
+// MiNTLib's open()/read()/lseek() do not work against ACSI2STM GemDrive
+// (open() returns ENOENT/ENOTDIR for files that GEMDOS Fopen() opens fine),
+// so all WAD I/O goes straight through the GEMDOS traps instead. These
+// shadow the libc names used below; handles are GEMDOS handles (long).
+//
+#define O_RDONLY_GEMDOS		0
+
+static int W_Open (const char *name)
+{
+    long h = Fopen ((char *)name, O_RDONLY_GEMDOS);
+    return (h < 0) ? -1 : (int)h;
+}
+
+static void W_Close (int handle)
+{
+    Fclose ((short)handle);
+}
+
+static int W_Read (int handle, void *buf, int len)
+{
+    long n = Fread ((short)handle, (long)len, buf);
+    return (n < 0) ? -1 : (int)n;
+}
+
+static int W_Seek (int handle, int offset, int whence)
+{
+    return (int)Fseek ((long)offset, (short)handle, (short)whence);
+}
+
+static int W_FileLength (int handle)
+{
+    long len = Fseek (0, (short)handle, 2);	// seek to end
+    Fseek (0, (short)handle, 0);		// rewind
+    return (int)len;
+}
+
+#define open(name,flags)	W_Open(name)
+#define close(h)		W_Close(h)
+#define read(h,buf,len)		W_Read((h),(buf),(len))
+#define lseek(h,off,whence)	W_Seek((h),(off),(whence))
 
 #include "doomtype.h"
 #include "m_swap.h"
@@ -71,14 +117,11 @@ void strupr (char* s)
     while (*s) { *s = toupper(*s); s++; }
 }
 */
-int filelength (int handle) 
-{ 
-    struct stat	fileinfo;
-    
-    if (fstat (handle,&fileinfo) == -1)
-	I_Error ("Error fstating");
-
-    return fileinfo.st_size;
+int filelength (int handle)
+{
+    // handle is a GEMDOS handle (see W_Open); use the GEMDOS-backed helper
+    // rather than fstat(), which doesn't understand these handles.
+    return W_FileLength (handle);
 }
 
 

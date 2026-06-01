@@ -38,6 +38,8 @@ static const char rcsid[] = "$Id: d_main.c,v 1.8 1997/02/03 22:45:09 b1 Exp $";
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <errno.h>
+#include <mint/osbind.h>
 #endif
 
 
@@ -568,6 +570,24 @@ void D_AddFile (char *file)
 }
 
 //
+// D_FileExists
+// access() is unreliable under ACSI2STM GemDrive (it can fail on a file that
+// open() would happily open, and vice-versa), so probe for IWADs using the
+// exact same open()/close() path that W_AddFile will use to load them.
+//
+static int D_FileExists (char *path)
+{
+    // Use GEMDOS Fopen rather than libc open(): MiNTLib's open() fails against
+    // ACSI2STM GemDrive (ENOENT/ENOTDIR) for files GEMDOS opens fine. W_AddFile
+    // now loads WADs via GEMDOS too, so this probe matches the real load path.
+    long handle = Fopen (path, 0);
+    if (handle < 0)
+	return 0;
+    Fclose ((short)handle);
+    return 1;
+}
+
+//
 // IdentifyVersion
 // Checks availability of IWAD files by name,
 // to determine whether registered/commercial features
@@ -575,7 +595,6 @@ void D_AddFile (char *file)
 //
 void IdentifyVersion (void)
 {
-
     char*	doom1wad;
     char*	doomwad;
     char*	doomuwad;
@@ -588,38 +607,64 @@ void IdentifyVersion (void)
 #ifdef NORMALUNIX
     char *home;
     char *doomwaddir;
+    static char exedir[1024];
+
     doomwaddir = getenv("DOOMWADDIR");
     if (!doomwaddir)
+    {
+	// When launched from the GEM desktop (double-click) the C library's
+	// current working directory / argv[0] are unreliable under ACSI2STM
+	// GemDrive, so a bare "." resolves to the wrong place. Ask GEMDOS
+	// directly where we are: the desktop sets the current drive+dir to
+	// the application's folder before launching it, and going through
+	// GEMDOS gives us the exact absolute path GemDrive expects.
+	int drv;
+	char tospath[1024];
+	drv = Dgetdrv();		// 0=A, 1=B, 2=C ...
 	doomwaddir = ".";
+	if (Dgetpath(tospath, drv + 1) == 0)
+	{
+	    // GEMDOS gives us a DOS-style path: "" for the drive root or
+	    // "\SUB\DIR" otherwise, with backslashes. All WAD I/O now goes
+	    // through the GEMDOS traps (Fopen etc.), which expect this native
+	    // DOS form, so just prepend the drive letter: "C:" + "\SUB\DIR".
+	    sprintf (exedir, "%c:%s", 'A' + drv, tospath);
+	    doomwaddir = exedir;
+	}
+    }
+    printf("DOOMWADDIR: %s\n", doomwaddir);
+
+    // Paths are joined with a backslash to match the native DOS form that the
+    // GEMDOS file calls expect (doomwaddir is "C:\SUB\DIR" or "." above).
 
     // Commercial.
     doom2wad = malloc(strlen(doomwaddir)+1+9+1);
-    sprintf(doom2wad, "%s/doom2.wad", doomwaddir);
+    sprintf(doom2wad, "%s\\doom2.wad", doomwaddir);
 
     // Retail.
     doomuwad = malloc(strlen(doomwaddir)+1+8+1);
-    sprintf(doomuwad, "%s/doomu.wad", doomwaddir);
-    
+    sprintf(doomuwad, "%s\\doomu.wad", doomwaddir);
+
     // Registered.
     doomwad = malloc(strlen(doomwaddir)+1+8+1);
-    sprintf(doomwad, "%s/doom.wad", doomwaddir);
-    
+    sprintf(doomwad, "%s\\doom.wad", doomwaddir);
+
     // Shareware.
     doom1wad = malloc(strlen(doomwaddir)+1+9+1);
-    sprintf(doom1wad, "%s/doom1.wad", doomwaddir);
+    sprintf(doom1wad, "%s\\doom1.wad", doomwaddir);
 
      // Bug, dear Shawn.
     // Insufficient malloc, caused spurious realloc errors.
     plutoniawad = malloc(strlen(doomwaddir)+1+/*9*/12+1);
-    sprintf(plutoniawad, "%s/plutonia.wad", doomwaddir);
+    sprintf(plutoniawad, "%s\\plutonia.wad", doomwaddir);
 
     tntwad = malloc(strlen(doomwaddir)+1+9+1);
-    sprintf(tntwad, "%s/tnt.wad", doomwaddir);
+    sprintf(tntwad, "%s\\tnt.wad", doomwaddir);
 
 
     // French stuff.
     doom2fwad = malloc(strlen(doomwaddir)+1+10+1);
-    sprintf(doom2fwad, "%s/doom2f.wad", doomwaddir);
+    sprintf(doom2fwad, "%s\\doom2f.wad", doomwaddir);
 
     home = getenv("HOME");
     if (home) {
@@ -670,14 +715,14 @@ void IdentifyVersion (void)
 	return;
     }
 
-    if ( !access (doom1wad,R_OK) )
+    if ( D_FileExists (doom1wad) )
     {
       gamemode = shareware;
       D_AddFile (doom1wad);
       return;
     }
 		
-    if ( !access (doom2fwad,R_OK) )
+    if ( D_FileExists (doom2fwad) )
     {
 	gamemode = commercial;
 	// C'est ridicule!
@@ -688,35 +733,35 @@ void IdentifyVersion (void)
 	return;
     }
 
-    if ( !access (doom2wad,R_OK) )
+    if ( D_FileExists (doom2wad) )
     {
 	gamemode = commercial;
 	D_AddFile (doom2wad);
 	return;
     }
 
-    if ( !access (plutoniawad, R_OK ) )
+    if ( D_FileExists (plutoniawad) )
     {
       gamemode = commercial;
       D_AddFile (plutoniawad);
       return;
     }
 
-    if ( !access ( tntwad, R_OK ) )
+    if ( D_FileExists (tntwad) )
     {
       gamemode = commercial;
       D_AddFile (tntwad);
       return;
     }
 
-    if ( !access (doomuwad,R_OK) )
+    if ( D_FileExists (doomuwad) )
     {
       gamemode = retail;
       D_AddFile (doomuwad);
       return;
     }
 
-    if ( !access (doomwad,R_OK) )
+    if ( D_FileExists (doomwad) )
     {
       gamemode = registered;
       D_AddFile (doomwad);
