@@ -1,9 +1,12 @@
-SUBDIR := linuxdoom-1.10
+SUBDIR :=
 
-.PHONY: all
+# .PHONY: all
+# all: stdoom sidecart
 
-all:
-	$(MAKE) -C $(SUBDIR)
+.PHONY: stdoom
+stdoom:
+	stcmd make -C linuxdoom-1.10
 
-%:
-	$(MAKE) -C $(SUBDIR) $@
+.PHONY: sidecart
+sidecart:
+	make -C sidecart

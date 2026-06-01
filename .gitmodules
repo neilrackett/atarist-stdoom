@@ -1,0 +1,6 @@
+[submodule "sidecart/pico-sdk"]
+	path = sidecart/pico-sdk
+	url = https://github.com/raspberrypi/pico-sdk.git
+[submodule "sidecart/pico-extras"]
+	path = sidecart/pico-extras
+	url = https://github.com/raspberrypi/pico-extras.git

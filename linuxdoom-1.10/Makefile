@@ -17,7 +17,7 @@ LDLIBS20=./deps/68020-60.soft-float.fastcall/libm.a
 LDLIBS2F=./deps/68020-60.68881.fastcall/libm.a
 
 # subdirectory for objects
-O=atari
+O=dist
 OBJDIR=$(O)/obj
 BUILDDIR=$(O)/build
 
@@ -31,6 +31,8 @@ OBJS=				\
 		$(OBJDIR)/atari_c2p.o		\
 		$(OBJDIR)/atari_checkcpu.o	\
 		$(OBJDIR)/atari_ym.o		\
+		$(OBJDIR)/sidecart_md.o		\
+		$(OBJDIR)/sidecart_stubs.o	\
 		$(OBJDIR)/doomdef.o		\
 		$(OBJDIR)/doomstat.o		\
 		$(OBJDIR)/dstrings.o		\
@@ -99,7 +101,9 @@ OBJS2F=$(OBJS:%.o=%.2f.o)
 all:	 $(BUILDDIR)/$(TARGET) # $(BUILDDIR)/$(TARGET20) $(BUILDDIR)/$(TARGET2F)
 
 clean:
-	rm -f $(BUILDDIR)/$(TARGET) $(BUILDDIR)/$(TARGET20) $(BUILDDIR)/$(TARGET2F) $(BUILDDIR)/*.map $(OBJDIR)/*.o $(OBJDIR)/*.s
+	rm -rf $(OBJDIR)
+	rm -f $(BUILDDIR)/$(TARGET) $(BUILDDIR)/$(TARGET20) $(BUILDDIR)/$(TARGET2F) \
+		$(BUILDDIR)/$(TARGET).map $(BUILDDIR)/$(TARGET20).map $(BUILDDIR)/$(TARGET2F).map
 
 $(BUILDDIR)/$(TARGET):	$(OBJS) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(OBJS) -o $@ $(LDLIBS)
@@ -120,6 +124,17 @@ $(OBJDIR)/%.20.o:	%.c | $(OBJDIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS20) -c $< -o $@
 
 $(OBJDIR)/%.o:	%.c | $(OBJDIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+# Assembly stubs (.S, preprocessed) for the SidecarTridge protocol. Pure 68000,
+# CPU-agnostic, but per-variant rules keep the OBJS20/OBJS2F derivation working.
+$(OBJDIR)/%.2f.o:	%.S | $(OBJDIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS2F) -c $< -o $@
+
+$(OBJDIR)/%.20.o:	%.S | $(OBJDIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS20) -c $< -o $@
+
+$(OBJDIR)/%.o:	%.S | $(OBJDIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 # Rule for compiling to assembly on demand

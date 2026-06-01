@@ -327,6 +327,7 @@ void I_InitGraphics(void)
     *(void**)0x118 = keyboard_interrupt;
     printf("Initializing c2p tables...\n");
     init_c2p_table();
+    c2p_md_init();
     save_palette(old_palette);
     draw_palette_table(st_screen);
     printf ("Done.\n");

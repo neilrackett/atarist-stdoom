@@ -1,0 +1,21 @@
+{
+  "uuid": "<APP_UUID>",
+  "name": "STDOOM Coprocessor",
+  "description": "The STDOOM Coprocessor offloads CPU-intensive STDOOM rendering (chunky-to-planar conversion) to the SidecarTridge Multi-device, letting Doom run faster on a stock Atari ST. For more information, visit <a href=\"https://github.com/neilrackett/atarist-stdoom\">https://github.com/neilrackett/atarist-stdoom</a>.",
+  "image": "https://atarist.neilrackett.com/<APP_UUID>.png",
+  "tags": [
+    "Doom",
+    "Coprocessor",
+    "C2P",
+    "Game"
+  ],
+  "devices": [
+    "Atari ST",
+    "Atari STE",
+    "Atari MegaST",
+    "Atari MegaSTE"
+  ],
+  "binary": "https://atarist.neilrackett.com/<APP_UUID>-<APP_VERSION>.uf2",
+  "md5": "<BINARY_MD5_HASH>",
+  "version": "<APP_VERSION>"
+}

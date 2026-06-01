@@ -1,11 +1,16 @@
 #include <mint/osbind.h>
 #include <stdint.h>
+#include <stdio.h>
 #include "atari_c2p.h"
 #include "i_system.h"
 #include "r_main.h"
 #include "w_wad.h"
 #include "z_zone.h"
 #include "doomdef.h"
+#include "sidecart_md.h"
+
+// STDOOM Coprocessor active flag (1 = SidecarTridge firmware detected).
+int c2p_md_active = 0;
 
 /* Some environments don't define u_int32_t, but do define uint32_t. */
 typedef uint32_t u_int32_t;
@@ -1955,6 +1960,21 @@ static void c2p_screen_tt_lorez(unsigned char *out, const unsigned char *in) {
                 c2p_4x_hirez(out + 160*line, in + SCREENWIDTH*(63 + line/4) + 120, 80, c2p_4x_table[phase&1]);
             }
         }
+    }
+}
+
+// Detect a SidecarTridge Multi-device running the STDOOM Coprocessor
+// firmware. Milestone 1: detection only — we report the result and, when
+// present, the firmware version string. C2P routing to the sidecart is added
+// in a later milestone.
+void c2p_md_init() {
+    c2p_md_active = sidecart_md_detect();
+    if (c2p_md_active) {
+        char version[64];
+        sidecart_md_result(version, sizeof(version));
+        printf("STDOOM Coprocessor detected (%s).\n", version);
+    } else {
+        printf("STDOOM Coprocessor not detected; using software C2P.\n");
     }
 }
 
