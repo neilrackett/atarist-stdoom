@@ -92,7 +92,7 @@ __attribute__((interrupt)) void keyboard_interrupt() {
         *pAciaData;
     } else while (aciaCtrl & ACIA_RX_DATA) {
         if (input_buffer_full()) {
-            printf("Input buffer overflow\n");
+            *pAciaData; /* drain byte to clear the ACIA */
             break;
         }
         *next_write++ = *pAciaData;
@@ -327,7 +327,8 @@ void I_InitGraphics(void)
     *(void**)0x118 = keyboard_interrupt;
     printf("Initializing c2p tables...\n");
     init_c2p_table();
-    c2p_md_init();
+    /* c2p_md_init() runs in D_DoomMain before I_Init (user mode, no cache,
+     * no sound VBL) — see d_main.c */
     save_palette(old_palette);
     draw_palette_table(st_screen);
     printf ("Done.\n");

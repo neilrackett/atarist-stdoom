@@ -35,7 +35,7 @@
 #define RANDOM_TOKEN_SEED_ADDR  (RANDOM_TOKEN_ADDR + 4)
 #define ROMCMD_START_ADDR       0xFB0000
 #define CMD_MAGIC_NUMBER        0xABCD
-#define COMMAND_TIMEOUT         0x00800000  /* ~69s on 8MHz 68000 — enough for fetch() */
+#define COMMAND_TIMEOUT         0x00040000  /* ~fast fail for diagnosis (~2s/16MHz); a real reply is instant */
 
     .text
     .even

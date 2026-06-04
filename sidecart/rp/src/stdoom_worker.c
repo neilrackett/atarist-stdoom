@@ -47,12 +47,23 @@ static TransmissionProtocol s_loop_proto;
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
+/* Rolling non-zero seed source. rand() must NOT be used: on the RP2040 there
+ * is no RTC, so time()==0 -> srand(0) -> newlib rand() returns 0 on its first
+ * call, producing a zero token/seed that breaks the ST handshake (the ST waits
+ * for seed_addr != token, which can never be true when both are 0). A simple
+ * LCG seeded non-zero guarantees a changing, always-non-zero value. */
+static uint32_t s_seed_state = 0xABCD1234u;
+
+static uint32_t stdoom_next_seed(void) {
+  s_seed_state = s_seed_state * 1103515245u + 12345u;
+  return s_seed_state | 1u;  /* force non-zero */
+}
+
 /* Write the random token back to shared memory to unblock the ST and seed the
  * next token value. */
 static void stdoom_send_response(uint32_t random_token) {
   TPROTO_SET_RANDOM_TOKEN(s_token_addr, random_token);
-  uint32_t new_seed = rand();
-  TPROTO_SET_RANDOM_TOKEN(s_token_seed_addr, new_seed);
+  TPROTO_SET_RANDOM_TOKEN(s_token_seed_addr, stdoom_next_seed());
 }
 
 /* Copy a NUL-terminated C string into the result buffer with the m68k
@@ -111,10 +122,9 @@ void stdoom_worker_init(void) {
   *s_status_mem = STDOOM_BUS_BYTE_WORD(STDOOM_STATUS_IDLE);
   *s_ready_mem = 0;
 
-  /* Seed the random token in shared memory. */
-  srand((unsigned int)time(NULL));
-  uint32_t seed = rand();
-  TPROTO_SET_RANDOM_TOKEN(s_token_seed_addr, seed);
+  /* Seed the random token with a guaranteed non-zero value (see
+   * stdoom_next_seed: rand() would yield 0 here without an RTC). */
+  TPROTO_SET_RANDOM_TOKEN(s_token_seed_addr, stdoom_next_seed());
 
   /* Drain anything the protocol parser has already latched before arming. */
   TransmissionProtocol drain;
@@ -133,6 +143,14 @@ void stdoom_worker_init(void) {
   DPRINTF("STDOOM Coprocessor ready. PING=0x%02X\n", CMD_STDOOM_PING);
 }
 
+/* TEMPORARY: publish the diagnostic counters into spare shared-memory slots so
+ * the ST can display them. Offsets are above the result-buffer-free region and
+ * unused by the protocol. ST reads at ROM4_ADDR + offset. */
+#define STDOOM_DBG_ROM3_IRQ_OFFSET 0xF010
+#define STDOOM_DBG_CMD_OFFSET      0xF014
+#define STDOOM_DBG_CHK_ERR_OFFSET  0xF018
+#define STDOOM_DBG_LAST_CMD_OFFSET 0xF01C
+
 void __not_in_flash_func(stdoom_worker_loop)(void) {
   if (stdoom_consume_protocol(&s_loop_proto)) {
     if (!s_dispatch_armed) {
@@ -142,4 +160,13 @@ void __not_in_flash_func(stdoom_worker_loop)(void) {
       stdoom_dispatch_command(&s_loop_proto);
     }
   }
+
+  /* Publish diagnostic counters every iteration. */
+  *(volatile uint32_t *)(s_rom_base + STDOOM_DBG_ROM3_IRQ_OFFSET) =
+      stdoom_dbg_rom3_irq;
+  *(volatile uint32_t *)(s_rom_base + STDOOM_DBG_CMD_OFFSET) = stdoom_dbg_cmd;
+  *(volatile uint32_t *)(s_rom_base + STDOOM_DBG_CHK_ERR_OFFSET) =
+      stdoom_dbg_chk_err;
+  *(volatile uint32_t *)(s_rom_base + STDOOM_DBG_LAST_CMD_OFFSET) =
+      (uint32_t)stdoom_dbg_last_cmd;
 }

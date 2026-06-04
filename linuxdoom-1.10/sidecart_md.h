@@ -30,6 +30,13 @@
 #define STDOOM_RESULT_ADDR ((volatile char *)0xFAF100L)
 #define STDOOM_PLANAR0_ADDR 0xFA0000L
 
+/* TEMPORARY diagnostic counters published by the RP2040 worker. Values are
+ * 16-bit word-swapped (ROM-in-RAM bus order), so treat as zero/non-zero. */
+#define STDOOM_DBG_ROM3_IRQ_ADDR ((volatile unsigned long *)0xFAF010L)
+#define STDOOM_DBG_CMD_ADDR      ((volatile unsigned long *)0xFAF014L)
+#define STDOOM_DBG_CHK_ERR_ADDR  ((volatile unsigned long *)0xFAF018L)
+#define STDOOM_DBG_LAST_CMD_ADDR ((volatile unsigned long *)0xFAF01CL)
+
 /* Ready magic written by the firmware once the worker is up (STDOOM_READY_MAGIC
  * = 'S' in stdoom_commands.h). The firmware writes it to both bytes of the bus
  * word, so a byte read at the even address $FAF00A returns it directly. */
@@ -54,6 +61,18 @@
  * @return 1 if the coprocessor is present and responding, 0 otherwise.
  */
 int sidecart_md_detect(void);
+
+/**
+ * @brief Diagnostic detection. Reports which stage failed and the raw values
+ *        read, for troubleshooting on hardware. Any out-pointer may be NULL.
+ * @param stage   0=ok, 1=ready mismatch, 2=dead seed, 3=PING timeout.
+ * @param ready   Raw byte read from STDOOM_READY_ADDR.
+ * @param seed_out Raw 32-bit seed read from STDOOM_SEED_ADDR.
+ * @param ping_rc  send_sync return code (0 ok, -1 timeout).
+ * @return 1 if detected, 0 otherwise.
+ */
+int sidecart_md_detect_verbose(int *stage, unsigned char *ready,
+                               unsigned long *seed_out, int *ping_rc);
 
 /**
  * @brief Copy the firmware version string (set by the last PING) into a C

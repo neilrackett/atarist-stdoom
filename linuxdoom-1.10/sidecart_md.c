@@ -36,30 +36,67 @@ void sidecart_md_result(char *buf, int size) {
   dst[i] = '\0';
 }
 
+/* ── Inter-command settle delay ───────────────────────────────────────────── */
+/* Ported from md-js (mdjs.c). A freshly-booted SidecarTridge can lose the
+ * first protocol command(s) to a cartridge-bus settle race in the RP's
+ * protocol parser. A short delay before the first command eliminates it.
+ * md-js found 6ms reliable on an 8 MHz 68000; we use a generous margin here
+ * since detection runs once. */
+static void sidecart_md_settle(void) {
+  volatile long i;
+  for (i = 0; i < 200000L; i++) {
+  }
+}
+
 /* ── Detection ──────────────────────────────────────────────────────────── */
-int sidecart_md_detect(void) {
+/* Aligned with md-js's proven mdjs_ping(): a single PING with payload_size 0
+ * (the 4-byte random token is added by the stub internally). Detection is
+ * authoritative on the token handshake, exactly as md-js/examples/mdjscode
+ * checks for firmware. The ready byte and seed are read for the on-screen
+ * diagnostic only.
+ *
+ * Diagnostic stage codes (via *stage):
+ *   0 = success
+ *   1 = ready magic mismatch (recorded, no longer aborts)
+ *   2 = seed looks dead (recorded, no longer aborts)
+ *   3 = PING handshake timed out                                            */
+int sidecart_md_detect_verbose(int *stage, unsigned char *ready,
+                               unsigned long *seed_out, int *ping_rc) {
+  unsigned char ready_val;
   unsigned long seed;
+  int rc;
+  int attempt;
 
-  /* 1. The firmware writes the ready magic to both bytes of the bus word once
-   *    the worker is up. Absent firmware leaves this unset. */
-  if (*STDOOM_READY_ADDR != STDOOM_READY_MAGIC) {
-    return 0;
-  }
+  ready_val = *STDOOM_READY_ADDR;
+  if (ready) *ready = ready_val;
 
-  /* 2. Guard against a stale/absent cartridge: the firmware seeds the token
-   *    from rand(), so an all-zero or all-ones seed means nothing is driving
-   *    the bus. */
   seed = *STDOOM_SEED_ADDR;
+  if (seed_out) *seed_out = seed;
+
+  if (stage) *stage = 0;
+  if (ready_val != STDOOM_READY_MAGIC) {
+    if (stage) *stage = 1;
+  }
   if (seed == 0UL || seed == 0xFFFFFFFFUL) {
+    if (stage) *stage = 2;
+  }
+
+  /* Settle the bus then PING. Detection runs before sound VBL install
+   * (moved to I_Init in i_system.c), so no interrupt-disable needed. */
+  sidecart_md_settle();
+
+  (void)attempt;
+  rc = stdoom_send_sync_command(CMD_STDOOM_PING, 0, 0L, 0L);
+  if (ping_rc) *ping_rc = rc;
+  if (rc != 0) {
+    if (stage) *stage = 3;
     return 0;
   }
 
-  /* 3. Issue a PING (payload_size 4 → token + d3 magic) and wait for the
-   *    token handshake. send_sync returns 0 only when the firmware echoes the
-   *    token back, which proves the worker is alive and dispatching. */
-  if (stdoom_send_sync_command(CMD_STDOOM_PING, 4, STDOOM_PING_MAGIC, 0L) != 0) {
-    return 0;
-  }
-
+  if (stage) *stage = 0;
   return 1;
+}
+
+int sidecart_md_detect(void) {
+  return sidecart_md_detect_verbose(0, 0, 0, 0);
 }

@@ -7,9 +7,16 @@
 #define STDOOM_PROTOCOL_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "pico.h"
 #include "tprotocol.h"
+
+/* TEMPORARY diagnostic counters (defined in stdoom_protocol.c). */
+extern volatile uint32_t stdoom_dbg_rom3_irq;
+extern volatile uint32_t stdoom_dbg_cmd;
+extern volatile uint32_t stdoom_dbg_chk_err;
+extern volatile uint16_t stdoom_dbg_last_cmd;
 
 /**
  * @brief DMA lookup IRQ callback used by ROM emulation.

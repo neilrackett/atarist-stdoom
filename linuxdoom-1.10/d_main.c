@@ -78,6 +78,7 @@ static const char rcsid[] = "$Id: d_main.c,v 1.8 1997/02/03 22:45:09 b1 Exp $";
 
 
 #include "d_main.h"
+#include "atari_c2p.h"
 
 //
 // D-DoomLoop()
@@ -1161,6 +1162,12 @@ void D_DoomMain (void)
 
     printf ("\nP_Init: Init Playloop state.\n");
     P_Init ();
+
+    /* Detect the SidecarTridge coprocessor here, in user mode with a full
+     * stack and before I_Init() switches on the CPU cache and installs the
+     * sound VBL. Both of those break the cartridge-bus PING handshake, and
+     * the small supervisor stack can't take the deep send_sync call. */
+    c2p_md_init ();
 
     printf ("I_Init: Setting up machine state.\n");
     I_Init ();

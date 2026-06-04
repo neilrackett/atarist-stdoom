@@ -1968,13 +1968,31 @@ static void c2p_screen_tt_lorez(unsigned char *out, const unsigned char *in) {
 // present, the firmware version string. C2P routing to the sidecart is added
 // in a later milestone.
 void c2p_md_init() {
-    c2p_md_active = sidecart_md_detect();
+    int stage = 0, ping_rc = -2;
+    unsigned char ready = 0;
+    unsigned long seed = 0;
+
+    c2p_md_active = sidecart_md_detect_verbose(&stage, &ready, &seed, &ping_rc);
+
+    // TEMPORARY diagnostics (40-col friendly).
+    printf("MD ready=$%02X(want $%02X) seed=$%08lX\n",
+           (unsigned)ready, (unsigned)STDOOM_READY_MAGIC,
+           (unsigned long)seed);
+    printf("MD stage=%d ping=%d\n", stage, ping_rc);
+    // RP-side counters: irq=ROM3 accesses seen, cmd=commands parsed,
+    // ce=checksum errors, lc=last command id (non-zero = RP is active).
+    printf("MD irq=%lX cmd=%lX ce=%lX lc=%lX\n",
+           (unsigned long)*STDOOM_DBG_ROM3_IRQ_ADDR,
+           (unsigned long)*STDOOM_DBG_CMD_ADDR,
+           (unsigned long)*STDOOM_DBG_CHK_ERR_ADDR,
+           (unsigned long)*STDOOM_DBG_LAST_CMD_ADDR);
+
     if (c2p_md_active) {
         char version[64];
         sidecart_md_result(version, sizeof(version));
-        printf("STDOOM Coprocessor detected (%s).\n", version);
+        printf("MD detected: %s\n", version);
     } else {
-        printf("STDOOM Coprocessor not detected; using software C2P.\n");
+        printf("MD not detected; SW C2P\n");
     }
 }
 
