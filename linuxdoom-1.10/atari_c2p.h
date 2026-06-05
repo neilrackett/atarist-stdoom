@@ -3,7 +3,7 @@
 
 void init_c2p_table();
 
-// STDOOM Coprocessor: detect a SidecarTridge running the STDOOM Coprocessor firmware.
+// STDOOM Accelerator: detect a SidecarTridge running the STDOOM Accelerator firmware.
 // Call once after init_c2p_table(). Sets c2p_md_active (1 if present, else 0).
 // Milestone 1 only detects; later milestones route C2P to the sidecart here.
 void c2p_md_init();

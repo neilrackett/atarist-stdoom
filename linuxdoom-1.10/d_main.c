@@ -1163,7 +1163,7 @@ void D_DoomMain (void)
     printf ("\nP_Init: Init Playloop state.\n");
     P_Init ();
 
-    /* Detect the SidecarTridge coprocessor here, in user mode with a full
+    /* Detect the SidecarTridge accelerator here, in user mode with a full
      * stack and before I_Init() switches on the CPU cache and installs the
      * sound VBL. Both of those break the cartridge-bus PING handshake, and
      * the small supervisor stack can't take the deep send_sync call. */

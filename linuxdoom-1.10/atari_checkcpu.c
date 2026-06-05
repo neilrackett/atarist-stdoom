@@ -9,9 +9,23 @@
 
 #define MCH_MEGA_STE   0x00010010L
 
-#define MEGASTE_CTRL_WORD_ADDR 0xffff8e20UL
+/*
+ * Mega STE CPU control register ($FFFF8E21), canonical MSTE_CC values:
+ *   $FF = 16 MHz + cache enabled
+ *   $FE = 16 MHz, cache disabled
+ *   $F4 =  8 MHz, cache disabled (TOS default after cold boot)
+ *
+ * The upper bits are "must be set" hardware/config flags. Writing the naive
+ * bit0=speed / bit1=cache values ($01 / $03) clears those flags, leaves the
+ * register in an undefined state, and does NOT actually switch the CPU. This
+ * was the source of the Mega STE instability. Keep these values in sync with
+ * sidecart_md.c and atarist-sdl's SDL_megaste.c. See:
+ *   https://github.com/phjanderson/MSTE_CC
+ */
 #define MEGASTE_CTRL_BYTE_ADDR 0xffff8e21UL
-#define MEGASTE_CTRL_16MHZ_CACHE 0x03
+#define MEGASTE_16MHZ_CACHE    0xFFu
+#define MEGASTE_16MHZ_NOCACHE  0xFEu
+#define MEGASTE_CTRL_CACHE_BIT 0x01u  /* bit0 of the canonical byte = cache on */
 
 static int megaste_ctrl_saved_valid = 0;
 static unsigned char megaste_ctrl_saved = 0;
@@ -32,7 +46,7 @@ int atari_is_megaste_16mhz_cache(void)
 
     {
         volatile unsigned char *ctrlb = (volatile unsigned char *)MEGASTE_CTRL_BYTE_ADDR;
-        if ((*ctrlb & MEGASTE_CTRL_16MHZ_CACHE) == MEGASTE_CTRL_16MHZ_CACHE)
+        if (*ctrlb & MEGASTE_CTRL_CACHE_BIT)
             cached = 1;
     }
 
@@ -48,7 +62,6 @@ void atari_enable_megaste_turbo(void)
         return;
 
     {
-        volatile unsigned short *ctrlw = (volatile unsigned short *)MEGASTE_CTRL_WORD_ADDR;
         volatile unsigned char *ctrlb = (volatile unsigned char *)MEGASTE_CTRL_BYTE_ADDR;
 
         if (!megaste_ctrl_saved_valid) {
@@ -57,15 +70,14 @@ void atari_enable_megaste_turbo(void)
         }
 
         /*
-         * Mega STe CPU speed/cache register:
-         * bit0: 0=8MHz, 1=16MHz
-         * bit1: 0=cache off, 1=cache on
+         * Write the canonical 16MHz+cache value. Do NOT write the high byte at
+         * $8E20 or the naive $03 value: both corrupt the must-be-set bits and
+         * destabilise the machine (see the note by the #defines above).
          */
-        *ctrlw = 0xffff;
-        *ctrlb = MEGASTE_CTRL_16MHZ_CACHE;
+        *ctrlb = MEGASTE_16MHZ_CACHE;
 
         Cconws("Mega STe: ");
-        if ((*ctrlb & MEGASTE_CTRL_16MHZ_CACHE) == MEGASTE_CTRL_16MHZ_CACHE) {
+        if (*ctrlb & MEGASTE_CTRL_CACHE_BIT) {
             Cconws("16MHz + cache on\r\n");
             (void)atari_is_megaste_16mhz_cache();
         } else {

@@ -1,5 +1,6 @@
 # Version from file
 VERSION := $(shell cat version.txt)
+ROOT_DIR := $(abspath ..)
 DEFAULT_APP_UUID_KEY := 44444444-4444-4444-8444-444444444444
 UUID_FROM_FILE := $(strip $(shell [ -f uuid.txt ] && tr -d '\r\n' < uuid.txt))
 APP_UUID_KEY_RESOLVED := $(if $(strip $(APP_UUID_KEY)),$(strip $(APP_UUID_KEY)),$(if $(UUID_FROM_FILE),$(UUID_FROM_FILE),$(DEFAULT_APP_UUID_KEY)))
@@ -16,9 +17,31 @@ build:
 
 ## Build debug firmware for pico using APP_UUID_KEY env var, then uuid.txt, then default
 .PHONY: debug
-debug:
+debug: tests
 	@echo "Using APP_UUID_KEY: $(APP_UUID_KEY_RESOLVED)"
 	./build.sh pico debug "$(APP_UUID_KEY_RESOLVED)"
+
+## Build both standalone test apps.
+.PHONY: tests
+tests: pingtest c2ptest
+
+## Build the standalone ping smoke test app.
+.PHONY: pingtest
+pingtest:
+	ST_WORKING_FOLDER=$(ROOT_DIR) stcmd m68k-atari-mint-gcc -O2 \
+		-I sidecart/tests -I linuxdoom-1.10 \
+		-o sidecart/tests/PINGTEST.TOS \
+		sidecart/tests/pingtest.c linuxdoom-1.10/sidecart_md.c \
+		linuxdoom-1.10/sidecart_stubs.S
+
+## Build the standalone C2P round-trip test app.
+.PHONY: c2ptest
+c2ptest:
+	ST_WORKING_FOLDER=$(ROOT_DIR) stcmd m68k-atari-mint-gcc -O2 \
+		-I sidecart/tests -I linuxdoom-1.10 \
+		-o sidecart/tests/C2PTEST.TOS \
+		sidecart/tests/c2ptest.c linuxdoom-1.10/sidecart_md.c \
+		linuxdoom-1.10/sidecart_stubs.S
 
 ## Tag this version
 .PHONY: tag

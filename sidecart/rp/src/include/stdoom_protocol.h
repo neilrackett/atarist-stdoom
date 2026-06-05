@@ -1,6 +1,6 @@
 /**
  * File: stdoom_protocol.h
- * Description: Minimal tprotocol bridge for STDOOM Coprocessor command ingestion.
+ * Description: Minimal tprotocol bridge for STDOOM Accelerator command ingestion.
  */
 
 #ifndef STDOOM_PROTOCOL_H

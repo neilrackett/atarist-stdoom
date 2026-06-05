@@ -10,11 +10,23 @@
 #define EMUL_H
 
 /**
- * @brief Launch the MD/JS runtime.
+ * @brief Publish the cartridge image into ROM-in-RAM and initialize ROM
+ * emulation so the Atari can see the cartridge during boot.
+ */
+void emul_publish_rom();
+
+/**
+ * @brief Initialize the STDOOM worker state and publish the ready magic.
  *
- * Copies the ST-side cartridge binary into ROM-in-RAM, initializes ROM
- * emulation and command parsing, starts the Core 1 JerryScript worker, and
- * enters the main dispatch loop.
+ * Call after the ROM image has been published so the ST boot stub can detect
+ * the accelerator as early as possible.
+ */
+void emul_arm_worker();
+
+/**
+ * @brief Enter the STDOOM worker dispatch loop.
+ *
+ * Call after the app startup path has finished any slower settings work.
  */
 void emul_start();
 

@@ -1,4 +1,4 @@
-# STDOOM Coprocessor Microfirmware (in atarist-stdoom/sidecart) — progressive, simplest-first
+# STDOOM Accelerator Microfirmware (in atarist-stdoom/sidecart) — progressive, simplest-first
 
 ## Context
 
@@ -48,11 +48,11 @@ Output will **not** be pixel-identical to STDOOM's software C2P yet — acceptab
 ## Milestone 1 — implemented: PING detection + host fallback
 
 Milestone 1 is complete. The code currently in the repo implements a synchronous
-PING handshake plus a clean host-side fallback when the coprocessor is absent.
+PING handshake plus a clean host-side fallback when the accelerator is absent.
 
 ### 1A. Firmware implementation in `sidecart/`
 - `sidecart/rp/src/stdoom_worker.c` publishes the ready magic at boot, seeds the
-  token, answers `CMD_STDOOM_PING`, writes `STDOOM Coprocessor/1.0` into the
+  token, answers `CMD_STDOOM_PING`, writes `STDOOM Accelerator/1.0` into the
   shared result buffer, and echoes the token back to the ST.
 - `sidecart/rp/src/stdoom_protocol.c` and
   `sidecart/rp/src/include/stdoom_protocol.h` provide the cartridge-bus protocol
@@ -80,24 +80,56 @@ $FAF100  result buffer    <=2048 B     (PING version string)
   - `MD ready=$XX(want $53) seed=$XXXXXXXX`
   - `MD stage=N ping=N`
   - `MD irq=%lX cmd=%lX ce=%lX lc=%lX`
-  - `MD detected: STDOOM Coprocessor/1.0`
+  - `MD detected: STDOOM Accelerator/1.0`
   - `MD not detected; SW C2P`
 
 ### 1D. Standalone test app
-- `sidecart/test/sctest.c` builds to `sidecart/test/SCTEST.TOS` via `make sctest`.
+- `sidecart/tests/pingtest.c` builds to `sidecart/tests/PINGTEST.TOS` via `make -C sidecart pingtest`.
 - Use it to validate SidecarTridge protocol changes before wiring them into
   STDOOM.
 
 ### Milestone 1 exit
 - With the sidecart firmware flashed, STDOOM reports
-  `MD detected: STDOOM Coprocessor/1.0`.
+  `MD detected: STDOOM Accelerator/1.0`.
 - Without the firmware, STDOOM falls back to `MD not detected; SW C2P`.
-- `make sctest` produces `sidecart/test/SCTEST.TOS`, which is the preferred
+- `make -C sidecart pingtest` produces `sidecart/tests/PINGTEST.TOS`, which is the preferred
   place to exercise new SidecarTridge features before touching STDOOM proper.
 
 ---
 
 ## Milestone 2 — C2P offload (synchronous, single slot, simplest C2P)
+
+### Current status: complete
+
+C2P offload works end-to-end. STDOOM proper renders gameplay frames through the
+accelerator on a Mega STE at **16 MHz + cache**, with correct geometry.
+
+- The RP2040 firmware accepts `INIT`, `SET_MAP`, `BLIT_ROWS`, and `C2P`.
+- The ST host uploads the full 320x200 chunky frame in 6-row chunks, triggers
+  C2P, then copies planar slot 0 back to the ST display.
+- `sidecart/tests/C2PTEST.TOS` is the canonical standalone validation app. It
+  prints timings for detect/init/map/upload/C2P/copy plus a planar checksum.
+- STE blitter copy is used for the planar-to-screen copy on STE/Mega STE, CPU
+  longword fallback on plain ST.
+- Mega STE cache is temporarily disabled around SidecarTridge protocol traffic
+  and restored afterwards, because the protocol depends on uncached ROM3 reads.
+
+#### Hard-won fixes (do not regress)
+
+- **Mega STE cache register `$FFFF8E21`** uses canonical MSTE_CC values
+  `$FF`/`$FE`/`$F4` (cache = bit0), not the naive `$01`/`$03` that corrupts the
+  must-be-set bits and destabilises the machine.
+- **STE blitter registers start at `$FFFF8A20`** ($8A00 = 16 words of halftone
+  RAM). The old `$8A02..$8A1E` offsets wrote into halftone RAM, so the blit
+  never ran (black screen).
+- **`Super()` is mode-aware** in `sidecart_md.c`: STDOOM is always in supervisor
+  mode after `I_Init`, and the naive `Super(0L)/Super(ssp)` pattern crashes
+  (2 bombs) when already supervisor.
+- **No planar byte-swap on the RP2040**: `stdoom_pack_to_planar` `memcpy`s plane
+  words to ROM-in-RAM (the ST reads uint16 values directly). Byte-swapping
+  scrambled the 8-pixel halves of every 16-pixel group.
+- **C2PTEST's synthetic pattern hides pixel-order bugs** — validate C2P pixel
+  order against real Doom output, not the smooth gradient.
 
 ### 2A. Firmware: add commands + a minimal Core 0 C2P
 - New commands: `CMD_STDOOM_INIT 0x11` (d3=(w<<16|h)), `CMD_STDOOM_SET_MAP 0x12`
@@ -107,11 +139,11 @@ $FAF100  result buffer    <=2048 B     (PING version string)
   `CMD_STDOOM_C2P 0x14` (run C2P into slot 0, then echo token).
 - **Synchronous, Core 0 is fine** for the first version (no FIFO/mailbox). On
   `C2P`, run the crude loop: for each pixel `st4 = doom8_to_st4[chunky_byte]`
-  (0–15), scatter its 4 plane bits into the ST interleaved 16-pixel word group,
-  write to slot 0 with the same big-endian word convention md-js/md-sdl use
-  (`COPY_AND_CHANGE_ENDIANESS_BLOCK16` / equivalent) so the ST reads correct
-  bytes. No dither, no per-line phase. Reference the *structure* of `sdl_c2p` in
-  `/Users/neil/Projects/__OS/md-sdl/rp/src/emul.c` but keep it minimal.
+  (0–15), scatter its 4 plane bits into the ST interleaved 16-pixel word group
+  (px0 → bit15), then `memcpy` the plane words to slot 0. **Do NOT byte-swap**
+  the plane words (the original `COPY_AND_CHANGE_ENDIANESS_BLOCK16` was wrong):
+  the ST reads ROM-in-RAM uint16 values directly, so the values the RP computes
+  are already what the shifter needs. No dither, no per-line phase.
 
 ### 2B. Host: reduction map + `c2p_screen_md` + planar copy
 - Build `doom8_to_st4[256]` in `c2p_md_init` from `mix_weights_lorez` (index of
@@ -134,9 +166,23 @@ $FAF100  result buffer    <=2048 B     (PING version string)
 - In `c2p_md_init` (Milestone 2): when `g_md_active`, set
   `c2p_screen_drawfunc = c2p_screen_md`. Leave `c2p_statusbar` software.
 
-**Milestone 2 exit:** in a 1× low-res level the sidecart produces displayed
-frames with correct geometry (flat/banded vs the software dither — fidelity
-refined later).
+### Implemented so far
+
+- `sidecart/tests/C2PTEST.TOS` now covers the full visible round trip and is the
+  preferred place to verify new changes before touching STDOOM proper.
+- `sidecart/tests/PINGTEST.TOS` remains the preferred transport/detection smoke
+  test.
+- The current `C2PTEST.TOS` image and checksum output are treated as the
+  expected Milestone 2 test oracle.
+
+### Milestone 2 exit criteria — met
+
+- ✅ In a 1x low-res level, STDOOM proper produces displayed frames through the
+  sidecart path with correct geometry and without crashing.
+- ✅ The software fallback (`c2p_screen_lorez`) is only used when intentionally
+  falling back (non-gameplay frames or a failed sidecart call), not because the
+  accelerator path failed silently.
+- ✅ Mega STE cache/turbo interaction is stable at 16 MHz + cache during play.
 
 ---
 
@@ -147,9 +193,9 @@ refined later).
 - **Build host:** `cd /Users/neil/Projects/__OS/atarist-stdoom/linuxdoom-1.10 &&
   make` → `atari/build/STDOOM.TOS` (+ `STDOOM20/2F.TOS`); confirm `sidecart_md.o`
   and `sidecart_stubs.o` link.
-- **PING (M1):** run `make sctest` and exercise `sidecart/test/SCTEST.TOS` to
+- **PING (M1):** run `make -C sidecart pingtest` and exercise `sidecart/tests/PINGTEST.TOS` to
   validate detection and version reporting, then flash the UF2 and run STDOOM to
-  confirm `MD detected: STDOOM Coprocessor/1.0`. Flash a different firmware to
+  confirm `MD detected: STDOOM Accelerator/1.0`. Flash a different firmware to
   confirm software fallback (`MD not detected; SW C2P`).
 - **C2P (M2):** in a 1× low-res level, confirm displayed frames have correct
   geometry/no garbage. Validate planar byte order by C2P-ing a known horizontal
@@ -157,16 +203,24 @@ refined later).
   interleaved layout. Toggle `g_md_active` off to A/B geometry against the
   software renderer.
 
+### Status note
+
+Milestones 1 and 2 are complete and confirmed on hardware (Mega STE, 16 MHz +
+cache). Next up is Milestone 3 (status bar offload).
+
 ## Critical files
 - **Destination (single repo):** `atarist-stdoom/sidecart/` (firmware) +
   `atarist-stdoom/linuxdoom-1.10/` (host client).
 - `/Users/neil/Projects/__OS/md-js/` — source to copy *from*;
   `rp/src/{mdjs_protocol.c, js_worker.c, emul.c}`,
   `target/atarist/src/{sidecart_stubs.S, mdjs.c, mdjs.h}`.
-- `/Users/neil/Projects/__OS/md-sdl/rp/src/emul.c` — `sdl_c2p` structure +
-  endianness helper to reference for the minimal C2P (and later dither).
-- `/Users/neil/Projects/__OS/atarist-sdl/src/video/xbios/SDL_xbios_md.c` —
-  `md_copy_planar_to_screen`, detection, chunk-upload reference.
+- `/Users/neil/Projects/__OS/md-sprites-demo/target/atarist/src/main.s` — the
+  validated reference for STE blitter copy-to-screen (correct `$FFFF8A20`
+  register offsets). Prefer this for copy/blitter questions.
+- `/Users/neil/Projects/__OS/md-sdl/` — EXPERIMENTAL, not a source of truth.
+  `rp/src/emul.c` (`sdl_c2p`) and `src/video/xbios/SDL_xbios_md.c` are useful for
+  *structure/ideas* (and the documented Mega STE `$FF`/`$FE`/`$F4` register
+  values in `SDL_megaste.c`), but verify anything before relying on it.
 - `/Users/neil/Projects/__OS/atarist-stdoom/linuxdoom-1.10/{i_video.c,
   atari_c2p.c, atari_c2p.h, Makefile}` — host integration points.
 

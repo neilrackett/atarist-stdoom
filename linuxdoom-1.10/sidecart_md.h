@@ -1,9 +1,9 @@
 /**
  * File: sidecart_md.h
- * Description: STDOOM Coprocessor ST-side client library — public header.
+ * Description: STDOOM Accelerator ST-side client library — public header.
  *
- * Provides a small C API for STDOOM to detect and talk to the STDOOM Coprocessor
- * coprocessor running on a SidecarTridge Multi-device. The low-level
+ * Provides a small C API for STDOOM to detect and talk to the STDOOM Accelerator
+ * running on a SidecarTridge Multi-device. The low-level
  * SidecarTridge command protocol is implemented in sidecart_stubs.S; this
  * header/implementation pair wraps it for use from the Doom C code.
  *
@@ -16,7 +16,16 @@
 
 /* ── Command IDs (must match stdoom_commands.h on the RP2040 side) ───────── */
 #define CMD_STDOOM_PING 0x0010
-/* Milestone 2: INIT 0x11, SET_MAP 0x12, BLIT_ROWS 0x13, C2P 0x14 */
+#define CMD_STDOOM_INIT 0x0011
+#define CMD_STDOOM_SET_MAP 0x0012
+#define CMD_STDOOM_BLIT_ROWS 0x0013
+#define CMD_STDOOM_C2P 0x0014
+
+/* STDOOM low-res frame geometry. */
+#define STDOOM_FRAME_WIDTH 320
+#define STDOOM_FRAME_HEIGHT 200
+#define STDOOM_CHUNKY_SIZE (STDOOM_FRAME_WIDTH * STDOOM_FRAME_HEIGHT)
+#define STDOOM_PLANAR_SIZE 32000
 
 /* PING magic — sent in d3. The firmware echoes the random token for any PING,
  * so this is informational/handshake padding ('STDM'). */
@@ -52,13 +61,13 @@
 /* ── Public API ─────────────────────────────────────────────────────────── */
 
 /**
- * @brief Detect whether the STDOOM Coprocessor firmware is present.
+ * @brief Detect whether the STDOOM Accelerator firmware is present.
  *
  * Checks the ready magic, guards against a stale/absent cartridge via the
  * random seed, then issues a PING and waits for the token handshake. On
  * success the firmware version string is available at STDOOM_RESULT_ADDR.
  *
- * @return 1 if the coprocessor is present and responding, 0 otherwise.
+ * @return 1 if the accelerator is present and responding, 0 otherwise.
  */
 int sidecart_md_detect(void);
 
@@ -73,6 +82,40 @@ int sidecart_md_detect(void);
  */
 int sidecart_md_detect_verbose(int *stage, unsigned char *ready,
                                unsigned long *seed_out, int *ping_rc);
+
+/**
+ * @brief Initialise the STDOOM C2P firmware for the active frame size.
+ * @param width  Frame width in pixels.
+ * @param height Frame height in pixels.
+ * @return 0 on success, -1 on timeout.
+ */
+int sidecart_md_init(unsigned short width, unsigned short height);
+
+/**
+ * @brief Upload the 256-byte chunky-to-ST4 reduction map.
+ * @param doom8_to_st4  256-byte lookup table mapping 8bpp Doom indices to 0..15.
+ * @return 0 on success, -1 on timeout.
+ */
+int sidecart_md_set_map(const unsigned char *doom8_to_st4);
+
+/**
+ * @brief Upload a chunk of chunky rows into the RP2040 staging buffer.
+ * @param y       Start row in the full 320x200 chunky framebuffer.
+ * @param rows    Number of rows in this chunk.
+ * @param width   Chunk width in bytes.
+ * @param pitch   Source pitch in bytes.
+ * @param chunky  Pointer to contiguous chunky rows.
+ * @return 0 on success, -1 on timeout.
+ */
+int sidecart_md_blit_rows(unsigned short y, unsigned short rows,
+                          unsigned short width, unsigned short pitch,
+                          const unsigned char *chunky);
+
+/**
+ * @brief Run the RP2040 chunky-to-planar conversion for the currently uploaded frame.
+ * @return 0 on success, -1 on timeout.
+ */
+int sidecart_md_c2p(void);
 
 /**
  * @brief Copy the firmware version string (set by the last PING) into a C

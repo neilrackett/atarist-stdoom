@@ -1,10 +1,10 @@
-; STDOOM Coprocessor cartridge loader stub
+; STDOOM Accelerator cartridge loader stub
 ; Based on the SidecarTridge firmware loader (C) 2023-2025 by Diego Parrilla
 ; License: GPL v3
 ;
 ; This cartridge image is emulated by the RP2040 in ROM4. It only needs to:
 ;   1. Provide a valid ROM cartridge header so TOS maps the cartridge.
-;   2. On boot, poll the ready byte the RP2040 writes once the STDOOM Coprocessor
+;   2. On boot, poll the ready byte the RP2040 writes once the STDOOM Accelerator
 ;      worker is up, and print a one-line status.
 ; The real detection/offload happens inside STDOOM.TOS via the sidecart_md
 ; client library — there is no bundled GEM demo app here.
@@ -66,7 +66,7 @@ pre_auto:
 	jmp (a3)
 
 start_rom_code:
-; Detect the STDOOM Coprocessor worker by polling the ready byte the RP2040 writes once
+; Detect the STDOOM Accelerator worker by polling the ready byte the RP2040 writes once
 ; the worker is up. D7 = 1 if available, 0 otherwise.
 	move.w #STDOOM_BOOT_READY_TIMEOUT, d6
 	clr.l d7
@@ -99,11 +99,11 @@ start_rom_code:
 	rts
 
 msg_ready:
-	dc.b "STDOOM Coprocessor ready",$d,$a,0
+	dc.b "STDOOM Accelerator ready",$d,$a,0
 	even
 
 msg_not_detected:
-	dc.b "STDOOM Coprocessor not detected",$d,$a,0
+	dc.b "STDOOM Accelerator not detected",$d,$a,0
 	even
 
 	even

@@ -1,6 +1,6 @@
-# STDOOM Coprocessor — Doom render coprocessor (SidecarTridge microfirmware)
+# STDOOM Accelerator — Doom render accelerator (SidecarTridge microfirmware)
 
-STDOOM Coprocessor offloads CPU-intensive STDOOM rendering to a
+STDOOM Accelerator offloads CPU-intensive STDOOM rendering to a
 [SidecarTridge Multi-device](https://sidecartridge.com) RP2040 cartridge so Doom
 runs faster on a stock Atari ST. The ST host side lives in
 [`../linuxdoom-1.10`](../linuxdoom-1.10) (`sidecart_md.c/.h`, `sidecart_stubs.S`);
@@ -14,8 +14,13 @@ removed.
 
 - **Milestone 1 (done):** PING detection. The firmware publishes a ready magic,
   answers `CMD_STDOOM_PING` with a version string, and echoes the protocol
-  token. STDOOM reports "coprocessor detected" at startup.
-- **Milestone 2 (planned):** C2P (chunky-to-planar) offload.
+  token. STDOOM reports "accelerator detected" at startup.
+- **Milestone 2 (done):** C2P (chunky-to-planar) offload. STDOOM uploads the
+  chunky framebuffer, the RP2040 converts it to planar slot 0, and the ST blits
+  it to screen. Gameplay frames render through the accelerator end-to-end on a
+  Mega STE at 16 MHz + cache, with correct geometry. `sidecart/tests/C2PTEST.TOS`
+  remains the preferred standalone hardware validation target.
+- **Milestone 3 (next):** status bar offload.
 
 ## One-time setup: Pico SDK submodules
 
@@ -50,7 +55,7 @@ Flash the resulting `.uf2` to the SidecarTridge.
 rp/src/                RP2040 firmware
   stdoom_commands.h    command IDs + shared ROM-in-RAM memory map
   stdoom_protocol.c    cartridge-bus protocol DMA bridge
-  stdoom_worker.c      command dispatch (PING) + token handshake
+  stdoom_worker.c      command dispatch (PING/INIT/SET_MAP/BLIT_ROWS/C2P) + token handshake
   emul.c               bootstrap (ROM emulation + worker loop)
 target/atarist/src/    m68k cartridge stub (main.s) → target_firmware.h
 desc/app.json          SidecarTridge app manifest

@@ -22,7 +22,7 @@ if (DEFINED ENV{PICOTOOL_OVERRIDE_DIR})
     endif()
 endif ()
 
-# STDOOM Coprocessor does not use WiFi/JerryScript, so a plain (non-W) Pico is the
+# STDOOM Accelerator does not use WiFi/JerryScript, so a plain (non-W) Pico is the
 # default board. The W variant still builds; the LED/network code is gone.
 set(BOARD_TYPE $ENV{BOARD_TYPE})
 if(NOT BOARD_TYPE)

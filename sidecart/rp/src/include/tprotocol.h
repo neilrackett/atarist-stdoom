@@ -249,11 +249,11 @@ static inline void __not_in_flash_func(tprotocol_parse)(
       PROTOCOL_READ_RESTART_MICROSECONDS) {
     tprotocol_nextTPstep = HEADER_DETECTION;
   }
+  tprotocol_last_header_found = tprotocol_new_header_found;
 
   switch (tprotocol_nextTPstep) {
     case HEADER_DETECTION:
       detect_header(data);
-      tprotocol_last_header_found = tprotocol_new_header_found;
       break;
 
     case COMMAND_READ:

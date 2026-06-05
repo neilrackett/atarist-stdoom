@@ -106,6 +106,11 @@ int main() {
     reset_jump_to_booster();
   }
 
+  // Publish the cartridge image before the slower settings path so the Atari
+  // can see the ROM and run the boot stub during startup.
+  emul_publish_rom();
+  emul_arm_worker();
+
   // Load the global configuration parameters
   int err = gconfig_init(CURRENT_APP_UUID_KEY);
   // If the global settings are not intialized, jump to the booster app to

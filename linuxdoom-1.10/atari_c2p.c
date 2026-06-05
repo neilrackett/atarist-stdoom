@@ -9,7 +9,7 @@
 #include "doomdef.h"
 #include "sidecart_md.h"
 
-// STDOOM Coprocessor active flag (1 = SidecarTridge firmware detected).
+// STDOOM Accelerator active flag (1 = SidecarTridge firmware detected).
 int c2p_md_active = 0;
 
 /* Some environments don't define u_int32_t, but do define uint32_t. */
@@ -30,6 +30,54 @@ void (*c2p_screen_drawfunc)(unsigned char *out, const unsigned char *in);
 void (*set_doom_palette)(const unsigned char *colors);
 void (*install_palette)(const unsigned short *palette);
 void (*save_palette)(unsigned short *palette);
+
+/* STE blitter registers (used as a fast copy path from ROM4 slot 0 to ST RAM) */
+/*
+ * STE blitter register map. The first 16 words at BLT_BASE ($FFFF8A00) are the
+ * halftone RAM; the actual registers start at +$20. The earlier +$02..+$1E
+ * offsets here were wrong (they wrote into halftone RAM, so the blitter control
+ * register was never touched and the blit silently did nothing). Offsets below
+ * match the Atari STE hardware reference and md-sprites-demo's main.s.
+ */
+#define BLT_BASE        0xFFFF8A00UL
+#define BLT_SRC_INC_X   (*(volatile unsigned short *)(BLT_BASE + 0x20))
+#define BLT_SRC_INC_Y   (*(volatile unsigned short *)(BLT_BASE + 0x22))
+#define BLT_SRC_ADDR    (*(volatile unsigned long *)(BLT_BASE + 0x24))
+#define BLT_END_MASK1   (*(volatile unsigned short *)(BLT_BASE + 0x28))
+#define BLT_END_MASK2   (*(volatile unsigned short *)(BLT_BASE + 0x2A))
+#define BLT_END_MASK3   (*(volatile unsigned short *)(BLT_BASE + 0x2C))
+#define BLT_DST_INC_X   (*(volatile unsigned short *)(BLT_BASE + 0x2E))
+#define BLT_DST_INC_Y   (*(volatile unsigned short *)(BLT_BASE + 0x30))
+#define BLT_DST_ADDR    (*(volatile unsigned long *)(BLT_BASE + 0x32))
+#define BLT_X_COUNT     (*(volatile unsigned short *)(BLT_BASE + 0x36))
+#define BLT_Y_COUNT     (*(volatile unsigned short *)(BLT_BASE + 0x38))
+#define BLT_HOP         (*(volatile unsigned char *)(BLT_BASE + 0x3A))
+#define BLT_OP          (*(volatile unsigned char *)(BLT_BASE + 0x3B))
+#define BLT_CTRL        (*(volatile unsigned char *)(BLT_BASE + 0x3C))
+
+#define BLT_CTRL_BUSY   0x80u
+#define BLT_CTRL_HOG    0x40u
+#define BLT_HOP_SOURCE  0x02u
+#define BLT_OP_COPY     0x03u
+
+static unsigned char s_doom8_to_st4[256];
+static void (*s_sw_set_doom_palette)(const unsigned char *colors);
+static int s_blitter_present = -1;
+
+static void rebuild_doom8_to_st4_map(void);
+static void set_st_doom_palette_md(const unsigned char *colors);
+static void c2p_screen_lorez(unsigned char *out, const unsigned char *in);
+static void c2p_screen_md(unsigned char *out, const unsigned char *in);
+static void sidecart_md_copy_planar_to_screen(unsigned long src_addr,
+                                              unsigned char *dst);
+
+static int blitter_present(void) {
+    if (s_blitter_present < 0) {
+        long mode = Blitmode(-1);
+        s_blitter_present = (mode & 1) != 0;
+    }
+    return s_blitter_present;
+}
 
 
 // [DOOM color 0..255][ST color 0..15]
@@ -888,6 +936,89 @@ void set_tt_doom_palette(const unsigned char *colors) {
     install_tt_palette(ttpalette);
 }
 
+static void rebuild_doom8_to_st4_map(void) {
+    for (int i = 0; i < 256; i++) {
+        unsigned char best_idx = 0;
+        unsigned char best_weight = 0;
+        unsigned char *weights = mix_weights_lorez[i];
+
+        for (int j = 0; j < 16; j++) {
+            if (weights[j] > best_weight) {
+                best_weight = weights[j];
+                best_idx = (unsigned char)j;
+            }
+        }
+        s_doom8_to_st4[i] = best_idx;
+    }
+}
+
+static void set_st_doom_palette_md(const unsigned char *colors) {
+    if (s_sw_set_doom_palette) {
+        s_sw_set_doom_palette(colors);
+    } else {
+        set_st_doom_palette(colors);
+    }
+
+    if (c2p_md_active) {
+        if (sidecart_md_set_map(s_doom8_to_st4) != 0) {
+            printf("MD SET_MAP failed; SW C2P\n");
+            c2p_md_active = 0;
+            c2p_screen_drawfunc = c2p_screen_lorez;
+            if (s_sw_set_doom_palette) {
+                set_doom_palette = s_sw_set_doom_palette;
+            } else {
+                set_doom_palette = set_st_doom_palette;
+            }
+        }
+    }
+}
+
+static void sidecart_md_copy_planar_to_screen(unsigned long src_addr,
+                                              unsigned char *dst) {
+    if (blitter_present()) {
+        short old_sr;
+
+        __asm__ volatile(
+            "move.w %%sr,%0\n\t"
+            "ori.w #0x0700,%%sr"
+            : "=d"(old_sr)
+            :
+            : "cc");
+
+        BLT_SRC_INC_X = 2;
+        BLT_SRC_INC_Y = 0;
+        BLT_SRC_ADDR = src_addr;
+        BLT_END_MASK1 = 0xFFFFu;
+        BLT_END_MASK2 = 0xFFFFu;
+        BLT_END_MASK3 = 0xFFFFu;
+        BLT_DST_INC_X = 2;
+        BLT_DST_INC_Y = 0;
+        BLT_DST_ADDR = (unsigned long)dst;
+        BLT_X_COUNT = (unsigned short)(STDOOM_PLANAR_SIZE / 2);
+        BLT_Y_COUNT = 1;
+        BLT_HOP = BLT_HOP_SOURCE;
+        BLT_OP = BLT_OP_COPY;
+        BLT_CTRL = (unsigned char)(BLT_CTRL_HOG | BLT_CTRL_BUSY);
+        while (BLT_CTRL & BLT_CTRL_BUSY) {
+        }
+
+        __asm__ volatile(
+            "move.w %0,%%sr"
+            :
+            : "d"(old_sr)
+            : "cc");
+        return;
+    }
+
+    const unsigned long *src = (const unsigned long *)src_addr;
+    unsigned long *d = (unsigned long *)dst;
+    unsigned long words = STDOOM_PLANAR_SIZE / 4;
+
+    while (words--) {
+        *d++ = *src++;
+    }
+}
+
 // Find the ST palette color index to fill a pixel with according to given weights.
 short bayer4_color(const unsigned char *weights, short numcolors, short phase, short px) {
     static unsigned char bayer[4][4] = {
@@ -948,6 +1079,7 @@ static void c2p_screen_lorez(unsigned char *out, const unsigned char *in);
 static void c2p_screen_midrez(unsigned char *out, const unsigned char *in);
 static void c2p_screen_hirez(unsigned char *out, const unsigned char *in);
 static void c2p_screen_tt_lorez(unsigned char *out, const unsigned char *in);
+static int c2p_md_frame_offloaded = 0;
 
 static void c2p_statusbar_lorez(unsigned char *out, const unsigned char *in, short y_begin, short y_end, short x_begin, short x_end) {
     out += y_begin * 160 + x_begin / 2;
@@ -998,6 +1130,7 @@ void init_c2p_table() {
         c2p_statusbar_drawfunc = c2p_statusbar_lorez;
         install_palette = install_st_palette;
         save_palette = save_st_palette;
+        s_sw_set_doom_palette = set_st_doom_palette;
         set_doom_palette = set_st_doom_palette;
         for (int i=0; i<256; i++) {
             unsigned char *weights = mix_weights_lorez[i];
@@ -1023,6 +1156,10 @@ void init_c2p_table() {
                     c2p_4x_table[phase][i][ipx] = ipx_pdata;
                 }
             }
+        }
+        if (c2p_md_active) {
+            c2p_screen_drawfunc = c2p_screen_md;
+            set_doom_palette = set_st_doom_palette_md;
         }
     } else if (res == 1) {
         // Medium resolution, 4 colors
@@ -1963,15 +2100,48 @@ static void c2p_screen_tt_lorez(unsigned char *out, const unsigned char *in) {
     }
 }
 
-// Detect a SidecarTridge Multi-device running the STDOOM Coprocessor
-// firmware. Milestone 1: detection only — we report the result and, when
-// present, the firmware version string. C2P routing to the sidecart is added
-// in a later milestone.
+static void c2p_screen_md(unsigned char *out, const unsigned char *in) {
+    boolean gameplay_screen = gamestate == GS_LEVEL
+        && !menuactive && !inhelpscreens && !automapactive;
+
+    c2p_md_frame_offloaded = 0;
+
+    if (!c2p_md_active || !gameplay_screen) {
+        c2p_screen_lorez(out, in);
+        return;
+    }
+
+    for (short y = 0; y < SCREENHEIGHT; y += 6) {
+        short rows = SCREENHEIGHT - y;
+        if (rows > 6) {
+            rows = 6;
+        }
+        if (sidecart_md_blit_rows((unsigned short)y, (unsigned short)rows,
+                                  STDOOM_FRAME_WIDTH, STDOOM_FRAME_WIDTH,
+                                  in + (y * SCREENWIDTH)) != 0) {
+            c2p_screen_lorez(out, in);
+            return;
+        }
+    }
+
+    if (sidecart_md_c2p() != 0) {
+        c2p_screen_lorez(out, in);
+        return;
+    }
+
+    sidecart_md_copy_planar_to_screen((unsigned long)STDOOM_PLANAR0_ADDR, out);
+    c2p_md_frame_offloaded = 1;
+}
+
+// Detect a SidecarTridge Multi-device running the STDOOM Accelerator
+// firmware. Milestone 2 keeps this synchronous: if the firmware is present,
+// we publish the version string and prime the single-slot C2P path.
 void c2p_md_init() {
     int stage = 0, ping_rc = -2;
     unsigned char ready = 0;
     unsigned long seed = 0;
 
+    rebuild_doom8_to_st4_map();
     c2p_md_active = sidecart_md_detect_verbose(&stage, &ready, &seed, &ping_rc);
 
     // TEMPORARY diagnostics (40-col friendly).
@@ -1989,8 +2159,19 @@ void c2p_md_init() {
 
     if (c2p_md_active) {
         char version[64];
+        int init_rc;
+        int map_rc;
+
         sidecart_md_result(version, sizeof(version));
-        printf("MD detected: %s\n", version);
+        init_rc = sidecart_md_init(STDOOM_FRAME_WIDTH, STDOOM_FRAME_HEIGHT);
+        map_rc = (init_rc == 0) ? sidecart_md_set_map(s_doom8_to_st4) : -1;
+        if (init_rc != 0 || map_rc != 0) {
+            c2p_md_active = 0;
+            printf("MD detected: %s\n", version);
+            printf("MD C2P init failed; SW C2P\n");
+        } else {
+            printf("MD detected: %s\n", version);
+        }
     } else {
         printf("MD not detected; SW C2P\n");
     }
@@ -2003,6 +2184,10 @@ void c2p_screen(unsigned char *out, const unsigned char *in) {
 void c2p_statusbar(unsigned char *out, const unsigned char *in, short y_begin, short y_end, short x_begin, short x_end) {
     if (y_end <= 0 || x_end <= 0)
         return;
+    if (c2p_md_frame_offloaded) {
+        c2p_md_frame_offloaded = 0;
+        return;
+    }
     boolean statusbar_drawn = gamestate == GS_LEVEL
         && !menuactive && !inhelpscreens && !automapactive && viewheight < SCREENHEIGHT;
     if (!statusbar_drawn)

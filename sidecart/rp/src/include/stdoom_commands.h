@@ -1,16 +1,16 @@
 /**
  * File: stdoom_commands.h
- * Description: STDOOM Coprocessor — RP2040 command IDs, shared memory map
+ * Description: STDOOM Accelerator — RP2040 command IDs, shared memory map
  *              and the public worker API.
  *
- * STDOOM Coprocessor offloads CPU-intensive STDOOM render work (C2P first) to the
- * SidecarTridge RP2040 when one is present. The ST detects the firmware with a
- * PING and, in later milestones, uploads the chunky framebuffer for the RP2040
- * to convert to the ST's planar format.
+ * STDOOM Accelerator offloads CPU-intensive STDOOM render work (C2P first) to
+ * the SidecarTridge RP2040 when one is present. The ST detects the firmware
+ * with a PING and, in Milestone 2, uploads the chunky framebuffer for the
+ * RP2040 to convert to the ST's planar format.
  *
- * Threading model (Milestone 1): everything runs on Core 0. PING just echoes
- * the random token and fills a version string. A Core 1 worker is introduced
- * in a later milestone for the heavy C2P path.
+ * Threading model (Milestone 2): everything runs on Core 0. PING just echoes
+ * the random token and fills a version string. C2P is synchronous and
+ * single-slot.
  *
  * ROM-in-RAM layout (ST sees ROM4 base $FA0000):
  *   0x0000..0x7D00  planar slot 0     (32000 B) — written by C2P (Milestone 2)
@@ -35,7 +35,10 @@
 /* ── Command IDs ────────────────────────────────────────────────────────── */
 /* Start at 0x10 to stay clear of the terminal/booster range. */
 #define CMD_STDOOM_PING 0x10 /* Detect firmware; d3='STDM'; version at $FAF100 */
-/* Milestone 2 adds: INIT 0x11, SET_MAP 0x12, BLIT_ROWS 0x13, C2P 0x14 */
+#define CMD_STDOOM_INIT 0x11
+#define CMD_STDOOM_SET_MAP 0x12
+#define CMD_STDOOM_BLIT_ROWS 0x13
+#define CMD_STDOOM_C2P 0x14
 /* 0x15..0x1F reserved for future render offload (column/span, palette FX). */
 
 /* PING magic — the ST sends this in d3 and expects a successful token echo. */
@@ -49,9 +52,14 @@
 #define STDOOM_RESULT_OFFSET 0xF100
 #define STDOOM_RESULT_MAX_SIZE 2048
 
-/* Planar output slot 0 (Milestone 2). */
+/* STDOOM low-res frame geometry and planar output slot 0 (Milestone 2). */
+#define STDOOM_FRAME_WIDTH 320
+#define STDOOM_FRAME_HEIGHT 200
+#define STDOOM_CHUNKY_SIZE (STDOOM_FRAME_WIDTH * STDOOM_FRAME_HEIGHT)
 #define STDOOM_PLANAR0_OFFSET 0x0000
 #define STDOOM_PLANAR_SIZE 32000
+#define STDOOM_PLANAR_WORDS (STDOOM_PLANAR_SIZE / 2)
+#define STDOOM_PLANAR_WORDS_PER_ROW (STDOOM_FRAME_WIDTH / 4)
 
 /* Ready magic written to the ready word once the worker is up. Both bytes of
  * the bus word carry the magic so the ST sees it regardless of which half of
