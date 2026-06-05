@@ -28,6 +28,7 @@ rcsid[] = "$Id: i_x.c,v 1.6 1997/02/03 22:45:10 b1 Exp $";
 #include <unistd.h>
 #include <mint/osbind.h>
 #include "atari_c2p.h"
+#include "sidecart_c2p.h"
 
 #include "doomstat.h"
 #include "i_system.h"
@@ -327,8 +328,10 @@ void I_InitGraphics(void)
     *(void**)0x118 = keyboard_interrupt;
     printf("Initializing c2p tables...\n");
     init_c2p_table();
-    /* c2p_md_init() runs in D_DoomMain before I_Init (user mode, no cache,
-     * no sound VBL) — see d_main.c */
+    /* sidecart_c2p_init() ran in D_DoomMain before I_Init (user mode, no cache,
+     * no sound VBL) — see d_main.c. Now override the software drawfuncs with the
+     * accelerated ones if the accelerator was detected. */
+    sidecart_c2p_install();
     save_palette(old_palette);
     draw_palette_table(st_screen);
     printf ("Done.\n");

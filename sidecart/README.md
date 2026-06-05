@@ -1,14 +1,18 @@
-# STDOOM Accelerator — Doom render accelerator (SidecarTridge microfirmware)
+# STDOOM Accelerator
 
-STDOOM Accelerator offloads CPU-intensive STDOOM rendering to a
-[SidecarTridge Multi-device](https://sidecartridge.com) RP2040 cartridge so Doom
-runs faster on a stock Atari ST. The ST host side lives in
-[`../linuxdoom-1.10`](../linuxdoom-1.10) (`sidecart_md.c/.h`, `sidecart_stubs.S`);
+Microfirmware for the [SidecarTridge Multi-device](https://sidecartridge.com)
+by [Neil Rackett](https://x.com/neilrackett)
+
+## Introduction
+
+At the heart of your SidecarTridge Multi-device is an RP2040 with the same raw
+processing power as a 386DX or 486SX CPU.
+
+The STDOOM Accelerator is designed to harness that power into a coprocessor that
+can make DOOM truly playable on a stock Atari ST.
+
+The ST host side lives in [`../linuxdoom-1.10`](../linuxdoom-1.10) (`sidecart_md.c/.h`, `sidecart_stubs.S`);
 this directory is the RP2040 firmware.
-
-It is derived from the [md-js](https://github.com/neilrackett/md-js)
-microfirmware (transport + protocol bridge), with the JavaScript/network stack
-removed.
 
 ## Status
 
@@ -20,7 +24,7 @@ removed.
   it to screen. Gameplay frames render through the accelerator end-to-end on a
   Mega STE at 16 MHz + cache, with correct geometry. `sidecart/tests/C2PTEST.TOS`
   remains the preferred standalone hardware validation target.
-- **Milestone 3 (next):** full C2P replacement. Route *all* rendering (splash,
+- **Milestone 3 (next):** full C2P replacement. Route _all_ rendering (splash,
   menus, intermission, automap, status bar, gameplay) through the accelerator
   when present, with dirty-rect support (only changed status-bar cells / the
   active zoomed-view rectangle are updated). Refactor the sidecart path into a
@@ -31,11 +35,13 @@ removed.
 Longer term, this accelerator design is intended as the model for a new (clean)
 Atari ST SDL XBIOS driver.
 
-## One-time setup: Pico SDK submodules
+## Building
 
 The firmware builds against the Raspberry Pi Pico SDK + Pico Extras, registered
 as git submodules of the `atarist-stdoom` repo at `sidecart/pico-sdk` and
-`sidecart/pico-extras`. From the repo root:
+`sidecart/pico-extras`.
+
+From the repo root:
 
 ```sh
 git submodule update --init --recursive sidecart/pico-sdk sidecart/pico-extras
@@ -43,20 +49,22 @@ git submodule update --init --recursive sidecart/pico-sdk sidecart/pico-extras
 
 (`rp/build.sh` also runs this automatically and pins the SDK tags.)
 
-You also need the ARM cross-toolchain, CMake, and picotool on your PATH, plus
-`vasm`/`vlink` and `stcmd` for the m68k cartridge stub.
+You also need:
+
+- the ARM cross-toolchain, CMake, and picotool on your PATH.
+- [`atarist-toolkit-docker`](https://github.com/sidecartridge/atarist-toolkit-docker) to compile the ST host side.
 
 ## Build
 
+In this folder, run:
+
 ```sh
-# From this directory. Builds the m68k cartridge stub + the RP2040 firmware,
-# producing dist/<uuid>-<version>.uf2 and dist/<uuid>.json.
-./build.sh pico release "$(cat uuid.txt)"
-# or simply:
-make build
+make build        # release build
+make build debug  # debug build and test apps
 ```
 
-Flash the resulting `.uf2` to the SidecarTridge.
+Flash the resulting `.uf2` to the SidecarT or copy both the `.uf2` (with the version
+number removed) and `.json` to the `apps` folder on your SidecarT's SD card.
 
 ## Layout
 
@@ -67,5 +75,5 @@ rp/src/                RP2040 firmware
   stdoom_worker.c      command dispatch (PING/INIT/SET_MAP/BLIT_ROWS/C2P) + token handshake
   emul.c               bootstrap (ROM emulation + worker loop)
 target/atarist/src/    m68k cartridge stub (main.s) → target_firmware.h
-desc/app.json          SidecarTridge app manifest
+desc/app.json          SidecarT app manifest
 ```

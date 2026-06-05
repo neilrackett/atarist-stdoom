@@ -31,6 +31,7 @@ OBJS=				\
 		$(OBJDIR)/atari_c2p.o		\
 		$(OBJDIR)/atari_checkcpu.o	\
 		$(OBJDIR)/atari_ym.o		\
+		$(OBJDIR)/sidecart_c2p.o	\
 		$(OBJDIR)/sidecart_md.o		\
 		$(OBJDIR)/sidecart_stubs.o	\
 		$(OBJDIR)/doomdef.o		\
