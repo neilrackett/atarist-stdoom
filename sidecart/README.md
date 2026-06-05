@@ -20,7 +20,16 @@ removed.
   it to screen. Gameplay frames render through the accelerator end-to-end on a
   Mega STE at 16 MHz + cache, with correct geometry. `sidecart/tests/C2PTEST.TOS`
   remains the preferred standalone hardware validation target.
-- **Milestone 3 (next):** status bar offload.
+- **Milestone 3 (next):** full C2P replacement. Route *all* rendering (splash,
+  menus, intermission, automap, status bar, gameplay) through the accelerator
+  when present, with dirty-rect support (only changed status-bar cells / the
+  active zoomed-view rectangle are updated). Refactor the sidecart path into a
+  separate `sidecart_c2p.c` that overrides the software `atari_c2p.c`.
+- **Milestone 4:** dynamic 16-colour palette (median cut / greyscale) and
+  selectable dither modes (none, greyscale, 2×2/4×4 Bayer).
+
+Longer term, this accelerator design is intended as the model for a new (clean)
+Atari ST SDL XBIOS driver.
 
 ## One-time setup: Pico SDK submodules
 

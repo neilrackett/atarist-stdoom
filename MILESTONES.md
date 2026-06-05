@@ -186,6 +186,134 @@ accelerator on a Mega STE at **16 MHz + cache**, with correct geometry.
 
 ---
 
+## Milestone 3 — full C2P replacement (all screens via the accelerator)
+
+### Goal
+
+When the accelerator is present, route **all** graphics/C2P through it, not just
+1× low-res gameplay: the splash screen, menus, intermission/finale, automap, and
+status bar. Effectively, the sidecart C2P *replaces* the software C2P entirely
+for the duration of the session (with software remaining the fallback only when
+no accelerator is detected). Note the gameplay status bar is already accelerated
+in M2 (the full 320×200 `screens[0]`, including the bottom 32 rows, goes through
+`c2p_screen_md`); M3 is about the non-gameplay screens and a clean architecture.
+
+### Dirty-rect rendering (required)
+
+M3 must support **dirty-rectangle** C2P, not just full-frame:
+
+- **Status bar:** only the cells that actually change (ammo/health digits, face,
+  arms, keys) are C2P'd and copied, mirroring the software `c2p_statusbar`
+  dirty-box path `(y_begin, y_end, x_begin, x_end)`.
+- **Zoomed/small view:** when the playfield is scaled to a small window, only the
+  active view rectangle is uploaded/converted/copied, not the full 320×200.
+
+This means the sidecart path needs **arbitrary `(x, y, w, h)` region** support
+end-to-end:
+
+- ST uploads only the dirty rows/columns for that region.
+- The RP2040 C2P converts just that region into the correct planar slot offset
+  (16-pixel x-alignment for plane words; clamp/extend x to word boundaries as the
+  software path does — see `c2p_statusbar`, `atari_c2p.c`).
+- The planar→screen copy blits only that region to the matching screen offset
+  (the blitter's `X_COUNT`/`Y_COUNT`/`DST_*` line stepping handles a sub-rect;
+  the M2 copy used a single linear `X_COUNT=16000, Y_COUNT=1` full-frame blit, so
+  a rect copy needs proper per-line `Y_COUNT` + destination/source line
+  increments).
+- Keep full-frame as the path for screens that change wholesale (splash, menu,
+  scene changes).
+
+### Planned architecture: `atari_c2p.c` (software) + `sidecart_c2p.c` (accelerated)
+
+- **Revert `atari_c2p.c` to its original, software-only form** (the pre-sidecart
+  version in git history): software drawfuncs and the
+  `c2p_screen_drawfunc`/`c2p_statusbar_drawfunc`/`set_doom_palette`/… function
+  pointers, with no `c2p_md_*` code interleaved.
+- **New `sidecart_c2p.c`** holds everything sidecart-specific currently living in
+  `atari_c2p.c` (reduction map build, `c2p_screen_md`, the blitter planar→screen
+  copy, the md palette hook). When the accelerator is detected, a single
+  `sidecart_c2p_install()` overrides the software function pointers with the
+  accelerated versions.
+- Expose the function pointers and the software drawfuncs/palette helpers via
+  `atari_c2p.h` so `sidecart_c2p.c` can install over them and fall back to them.
+- This mirrors how a clean SDL XBIOS driver would swap implementations, which is
+  the longer-term motivation (see "Why" below).
+
+### Open questions for M3
+
+- **Region command shape.** Define the dirty-rect protocol: either extend
+  `BLIT_ROWS`/`C2P` with `(x, w)` (they already carry `y`, `rows`, `width`,
+  `pitch`), or add explicit region commands. Keep x word-aligned (×16) for plane
+  packing.
+- **Per-screen routing.** Decide which screens use full-frame vs dirty-rect
+  (gameplay status bar + zoomed view = dirty-rect; splash/menu/scene change =
+  full-frame). The software path's existing dirty-box logic (`c2p_statusbar`,
+  zoom view dimensions) is the reference for the rects.
+- **Cadence.** Splash/menu frames are infrequent and dirty-rects are small, so
+  the synchronous single-slot model is almost certainly still fine (no
+  double-buffering needed yet).
+
+### M3 exit criteria
+
+- With the accelerator present, every STDOOM screen from the splash onwards is
+  rendered through the sidecart C2P with correct geometry.
+- Dirty-rect updates work: the status bar updates only changed cells, and a
+  small/zoomed view uploads/converts/copies only the active view rectangle.
+- With no accelerator, behaviour is identical to the reverted software
+  `atari_c2p.c` (clean fallback, no regressions).
+- `atari_c2p.c` contains no sidecart-specific code; all of it lives in
+  `sidecart_c2p.c`.
+
+---
+
+## Milestone 4 — dynamic palette + dither modes
+
+### Goal
+
+Replace the crude fixed nearest-colour reduction with a **dynamic 16-colour
+palette** and **selectable dither modes**, primarily as a testbed for image
+quality.
+
+- **Dynamic palette generation:** build the 16-colour ST palette from the active
+  DOOM palette per frame/scene — e.g. median cut for colour, or a luminance ramp
+  for greyscale — instead of mapping to a fixed ST palette.
+- **Dither / colour modes (for testing):**
+  - none (flat nearest-colour, as M2)
+  - greyscale
+  - 2×2 Bayer dithering
+  - 4×4 Bayer dithering
+- **Mode selection:** runtime switching is the goal; compile-time selection is an
+  acceptable first step.
+
+### Notes
+
+- The RP2040 already receives a 256→16 reduction map (`SET_MAP`); M4 generalises
+  how that map (and the ST palette) is computed, and adds the dither stage in the
+  RP2040 C2P (`stdoom_pack_to_planar`).
+- `atari_c2p.c`'s existing `mix_weights_*` / Bayer tables are a useful reference
+  for the dither maths.
+
+### M4 exit criteria
+
+- The ST palette is generated dynamically (colour and greyscale) rather than
+  fixed.
+- All four dither/colour modes are selectable (runtime or compile-time) and
+  visibly distinct.
+
+---
+
+## Why this approach (longer-term motivation)
+
+If the STDOOM accelerator path works well, it becomes the **model for a new Atari
+ST SDL XBIOS driver**. The current `atarist-sdl` `SDL_xbios_md.c` driver is
+experimental, unstable, and not really usable; a clean, proven C2P-replacement +
+palette/dither design here is intended to be ported into a solid SDL driver. This
+is also why M3 favours a clean `atari_c2p.c` (software) / `sidecart_c2p.c`
+(accelerated) split — it maps directly onto an SDL driver swapping
+implementations.
+
+---
+
 ## Verification
 - **Build firmware:** `cd /Users/neil/Projects/__OS/atarist-stdoom/sidecart &&
   ./build.sh pico release <new-uuid>` → UF2 + JSON in `dist/`; `target/atarist`
@@ -224,9 +352,10 @@ cache). Next up is Milestone 3 (status bar offload).
 - `/Users/neil/Projects/__OS/atarist-stdoom/linuxdoom-1.10/{i_video.c,
   atari_c2p.c, atari_c2p.h, Makefile}` — host integration points.
 
-## Deferred (future phases, once the above works)
-- md-sdl's dynamic palette reduction + Bayer dither (the user's flexibility goal).
+## Deferred (future phases, beyond M3/M4)
 - Async double-buffering (two slots + mailbox; would relocate the token block and
   edit `sidecart_stubs.S` constants).
-- Offloading zoom (2×/4×) and the statusbar dirty-box path.
 - Offloading further render-pipeline work (column/span drawing, palette FX).
+
+(Dynamic palette + Bayer dither is now **Milestone 4**; full-pipeline / all-screen
+offload is now **Milestone 3**.)
