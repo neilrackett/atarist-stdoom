@@ -17,9 +17,9 @@ LDLIBS20=./deps/68020-60.soft-float.fastcall/libm.a
 LDLIBS2F=./deps/68020-60.68881.fastcall/libm.a
 
 # subdirectory for objects
-O=dist
+O=build
 OBJDIR=$(O)/obj
-BUILDDIR=$(O)/build
+BUILDDIR=$(O)/dist
 
 EXT=.TOS
 TARGET=STDOOM$(EXT)

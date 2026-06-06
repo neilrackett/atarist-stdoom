@@ -1,8 +1,8 @@
 /**
  * File: sidecart_md.h
- * Description: STDOOM Accelerator ST-side client library — public header.
+ * Description: DOOM Accelerator ST-side client library — public header.
  *
- * Provides a small C API for STDOOM to detect and talk to the STDOOM Accelerator
+ * Provides a small C API for STDOOM to detect and talk to the DOOM Accelerator
  * running on a SidecarTridge Multi-device. The low-level
  * SidecarTridge command protocol is implemented in sidecart_stubs.S; this
  * header/implementation pair wraps it for use from the Doom C code.
@@ -61,7 +61,7 @@
 /* ── Public API ─────────────────────────────────────────────────────────── */
 
 /**
- * @brief Detect whether the STDOOM Accelerator firmware is present.
+ * @brief Detect whether the DOOM Accelerator firmware is present.
  *
  * Checks the ready magic, guards against a stale/absent cartridge via the
  * random seed, then issues a PING and waits for the token handshake. On
@@ -112,7 +112,21 @@ int sidecart_md_blit_rows(unsigned short y, unsigned short rows,
                           const unsigned char *chunky);
 
 /**
- * @brief Run the RP2040 chunky-to-planar conversion for the currently uploaded frame.
+ * @brief Run the RP2040 chunky-to-planar conversion for a word-aligned
+ *        sub-rectangle of the staged chunky frame.
+ *
+ * @param x  Left edge of the rectangle in pixels (must be a multiple of 16).
+ * @param y  Top edge in pixels.
+ * @param w  Width in pixels (must be a multiple of 16).
+ * @param h  Height in pixels.
+ * @return 0 on success, -1 on timeout.
+ */
+int sidecart_md_c2p_rect(unsigned short x, unsigned short y,
+                         unsigned short w, unsigned short h);
+
+/**
+ * @brief Run the RP2040 chunky-to-planar conversion for the full staged frame.
+ *        Equivalent to sidecart_md_c2p_rect(0, 0, STDOOM_FRAME_WIDTH, STDOOM_FRAME_HEIGHT).
  * @return 0 on success, -1 on timeout.
  */
 int sidecart_md_c2p(void);
@@ -124,5 +138,19 @@ int sidecart_md_c2p(void);
  * @param size Size of buf in bytes.
  */
 void sidecart_md_result(char *buf, int size);
+
+/**
+ * @brief Enable/disable masking 68000 interrupts (IPL 7) around each
+ *        cartridge-bus command.
+ *
+ * Keeps the timing-critical ROM3 read sequence atomic so MFP/timer interrupts
+ * (keyboard keypress, menu-sound timer) cannot corrupt a command and force a
+ * software-render fallback. MOVE-to-SR is privileged, so only enable this once
+ * the game is running in supervisor mode (after I_Init); leave it disabled for
+ * the user-mode detect/INIT/SET_MAP commands issued during D_DoomMain.
+ *
+ * @param enable Non-zero to mask interrupts around commands; zero to disable.
+ */
+void sidecart_md_set_intr_mask(int enable);
 
 #endif /* SIDECART_MD_H */

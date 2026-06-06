@@ -45,6 +45,7 @@ rcsid[] = "$Id: m_bbox.c,v 1.1 1997/02/03 22:45:10 b1 Exp $";
 #pragma implementation "i_system.h"
 #endif
 #include "i_system.h"
+#include "m_argv.h"
 
 void atari_enable_megaste_turbo(void);
 void atari_restore_megaste_turbo(void);
@@ -125,7 +126,8 @@ void I_Init (void)
     super_ret = Super(0L);
     old_super_stack = super_ret;
     super_enabled = 1;
-    atari_enable_megaste_turbo();
+    if (!M_CheckParm("-nomste16"))
+        atari_enable_megaste_turbo();
     I_InitSound();
     I_InitMusic();
     //  I_InitGraphics();

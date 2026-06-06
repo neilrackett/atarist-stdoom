@@ -1,6 +1,6 @@
 /**
  * File: emul.c
- * Description: STDOOM Accelerator runtime bootstrap (ROM emulation + accelerator loop).
+ * Description: DOOM Accelerator runtime bootstrap (ROM emulation + accelerator loop).
  */
 
 #include "emul.h"

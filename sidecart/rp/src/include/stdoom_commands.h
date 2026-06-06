@@ -1,9 +1,9 @@
 /**
  * File: stdoom_commands.h
- * Description: STDOOM Accelerator — RP2040 command IDs, shared memory map
+ * Description: DOOM Accelerator — RP2040 command IDs, shared memory map
  *              and the public worker API.
  *
- * STDOOM Accelerator offloads CPU-intensive STDOOM render work (C2P first) to
+ * DOOM Accelerator offloads CPU-intensive STDOOM render work (C2P first) to
  * the SidecarTridge RP2040 when one is present. The ST detects the firmware
  * with a PING and, in Milestone 2, uploads the chunky framebuffer for the
  * RP2040 to convert to the ST's planar format.

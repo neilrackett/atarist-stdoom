@@ -1,35 +1,37 @@
 # STDOOM Turbo
 
-This is STDOOM Turbo, a port of DOOM to the Atari ST that supports [SidecarTridge Multi-device](https://sidecartridge.com) acceleration.
+[STDOOM](https://github.com/indyjo/STDOOM) + [DOOM Accelerator](sidecart/README.md) = STDOOM Turbo
 
 ![title screen](titlepic.png)
 ![screenshot](screen1.png)
 
-Based on STDOOM by [indyjo](https://github.com/indyjo/STDOOM), accellerated by [Neil Rackett](https://x.com/neilrackett).
+## Introduction
 
-## SYSTEM REQUIREMENTS
+This is an experiment by [Neil Rackett](https://x.com/neilrackett) to see if it's possible to harness the raw power of a SidecarTridge Multi-device to make [STDOOM](https://github.com/indyjo/STDOOM) playable on a stock Atari ST.
 
-You need an Atari ST with at least 4MB of RAM. A 16MHz machine (like the Mega STe) is recommended.
-Running on an 8MHz machine should work, but is expected to be unplayably slow.
+## System requirements
 
-## HOW TO PLAY
+- Atari ST with at least 4MB of RAM.
+- [SidecarTridge Multi-device](https://sidecartridge.com) with [DOOM Accelerator](sidecart/README.md).
 
+Without DOOM Accelerator, it's just regular STDOOM and will most likely be unplayably slow on an 8MHz ST.
+
+## How to play
+
+- Install the [DOOM Accelerator](sidecart/README.md) microfirmware on your SidecarTridge Multi-device.
 - Copy the `STDOOM.TOS` executable into a folder on your ST's (real or emulated) hard drive.
-  You can download the STDOOM.TOS executable here if you don't want to compile it yourself:
-  https://github.com/indyjo/STDOOM/blob/master/linuxdoom-1.10/atari/stdoom.tos
 - Put a WAD file like `DOOM1.WAD` next to it.
 - Start `STDOOM.TOS`.
 - Use keyboard or mouse for control, just as in the original game.
-- If you have a system with at least a Motorola 68020 CPU but no FPU, you can use the `STDOOM20.TOS`
-  executable.
-- If you have a system with at least a Motorola 68020 with FPU, you can use the `STDOOM2F.TOS`
-  executable.
+- If you have a system with at least a Motorola 68020 CPU but no FPU, you can use the `STDOOM20.TOS` executable.
+- If you have a system with at least a Motorola 68020 with FPU, you can use the `STDOOM2F.TOS` executable.
 
-## FEATURES
+TOS files and microfirmware are available from the [releases page](https://github.com/neilrackett/atarist-stdoom/releases).
+
+## Features
 
 - Runs DOOM (and DOOM II) on Atari ST computers.
-- Supports low resolution (320x200, 16 colors) and medium resolution (640x200, 4 colors).
-- Supports STDOOM Accellerator microfirmware for SidecarTridge Multi-device (optional).
+- Supports low resolution (320x200, 16 colors).
 - Zoomed mode for higher performance (activate by reducing window size using = key or menu).
 - Audio sample playback using STe DMA sound.
 - Music playback using the YM-2149 soundchip (work in progress).
@@ -39,9 +41,9 @@ Running on an 8MHz machine should work, but is expected to be unplayably slow.
 
 - Network gameplay
 
-## HOW TO COMPILE
+## How to compile
 
-You need a C compiler and GNU Make. I recommend compiling with [`atarist-toolkit-docker`](https://github.com/sidecartridge/atarist-toolkit-docker), but you could also compile with [Thorsten Otto's Crossmint tools](https://www.tho-otto.de/crossmint.php) if you want to use `-mfastcall`.
+You need a C compiler and GNU Make. I recommend compiling with [`atarist-toolkit-docker`](https://github.com/sidecartridge/atarist-toolkit-docker).
 
 To compile STDOOM, run `make stdoom`.
 
@@ -54,11 +56,11 @@ STDOOM has the following compile-time dependencies:
 
 ### A word on "fastcall"
 
-STDOOM is able to use the 'fastcall' calling convention. This requires that all libraries, including
-libc and libm, also support fastcall. If you find that your `STDOOM.TOS` executable crashes right
-on start, try to remove `-mfastcall` from all places in the `Makefile` and recompile (after `make clean`).
+STDOOM is able to use the 'fastcall' calling convention, available in [Thorsten Otto's Crossmint tools](https://www.tho-otto.de/crossmint.php).
 
-## HOW TO BENCHMARK
+If you want to use `-mfastcall`, you must ensure that all libraries, including libc and libm, also support fastcall.
+
+## How to benchmark
 
 - Rename `STDOOM.TOS` to `STDOOM.TTP`
 - On start, enter parameters: `-timedemo demo3 -nosound`
@@ -66,11 +68,11 @@ on start, try to remove `-mfastcall` from all places in the `Makefile` and recom
   Error: timed 2134 gametics in x realtics
 - x is the time elapsed in 1/35th of a second. Calculate FPS: 35\*2134/x
 
-## COMMAND-LINE OPTIONS
+## Command-line options
 
-STDOOM supports the typical command-line options of the original Linuxdoom.
-Additional options include:
+STDOOM Turbo supports the same command-line options of the original Linuxdoom, plus:
 
 - `-nomusic` disables YM-2149 soundchip music.
-- `-nosfx` disables STe DMA sound effects. Use this to run on plain ST hardware.
+- `-nosfx` disables STE DMA sound effects.
 - `-nosound` disables sound altogether.
+- `-nomste16` skips the Mega STE 16MHz speed switch at startup (uses existing speed setting).

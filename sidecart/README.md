@@ -1,18 +1,25 @@
-# STDOOM Accelerator
+# DOOM Accelerator
 
 Microfirmware for the [SidecarTridge Multi-device](https://sidecartridge.com)
 by [Neil Rackett](https://x.com/neilrackett)
 
 ## Introduction
 
-At the heart of your SidecarTridge Multi-device is an RP2040 with the same raw
-processing power as a 386DX or 486SX CPU.
+At the heart of your SidecarTridge Multi-device is an RP2040 processor with the same raw power as a 386DX or 486SX CPU.
 
-The STDOOM Accelerator is designed to harness that power into a coprocessor that
-can make DOOM truly playable on a stock Atari ST.
+The DOOM Accelerator microfirmware is designed to harness that power into a coprocessor that can make DOOM truly playable on a stock Atari ST.
 
 The ST host side lives in [`../linuxdoom-1.10`](../linuxdoom-1.10) (`sidecart_md.c/.h`, `sidecart_stubs.S`);
 this directory is the RP2040 firmware.
+
+## Installation
+
+1. Download the latest files from the [releases page](https://github.com/neilrackett/atarist-stdoom/releases).
+2. Copy the `.uf2` and `.json` files to the `/apps` folder of your SidecarT's microSD card.
+3. On the Booster screen, press ESC for the app list and select the DOOM Accelerator app.
+4. To return to Booster, turn on your ST while holding the SELECT button on your SidecarT.
+
+You'll know if the microfirmware is working because you'll see "DOOM Accelerator ready" on your ST's screen as it boots.
 
 ## Status
 
@@ -24,13 +31,18 @@ this directory is the RP2040 firmware.
   it to screen. Gameplay frames render through the accelerator end-to-end on a
   Mega STE at 16 MHz + cache, with correct geometry. `sidecart/tests/C2PTEST.TOS`
   remains the preferred standalone hardware validation target.
-- **Milestone 3 (next):** full C2P replacement. Route _all_ rendering (splash,
-  menus, intermission, automap, status bar, gameplay) through the accelerator
-  when present, with dirty-rect support (only changed status-bar cells / the
-  active zoomed-view rectangle are updated). Refactor the sidecart path into a
-  separate `sidecart_c2p.c` that overrides the software `atari_c2p.c`.
-- **Milestone 4:** dynamic 16-colour palette (median cut / greyscale) and
+- **Milestone 3 (done):** full C2P replacement. _All_ rendering (splash, menus,
+  intermission, automap, status bar, gameplay) goes through the accelerator when
+  present, with dirty-rect support (only changed status-bar cells / the active
+  zoomed-view rectangle are updated). The sidecart path now lives in a separate
+  `sidecart_c2p.c` that overrides the pure-software `atari_c2p.c`. Confirmed on a
+  Mega STE at 16 MHz + cache. `sidecart/tests/RECTTEST.TOS` validates the
+  dirty-rect pipeline standalone.
+- **Milestone 4 (next):** dynamic 16-colour palette (median cut / greyscale) and
   selectable dither modes (none, greyscale, 2×2/4×4 Bayer).
+- **Milestone 5:** async data processing — non-blocking C2P dispatch; the ST
+  fires C2P and returns to game logic immediately, synchronising only at vsync
+  before the planar copy. No extra memory; `sidecart_stubs.S` unchanged.
 
 Longer term, this accelerator design is intended as the model for a new (clean)
 Atari ST SDL XBIOS driver.

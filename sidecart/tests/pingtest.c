@@ -1,5 +1,5 @@
 /*
- * pingtest.c - SidecarTridge STDOOM Accelerator smoke test.
+ * pingtest.c - SidecarTridge DOOM Accelerator smoke test.
  *
  * Standalone TOS app; loops until ESC, re-running detect + Milestone 2 C2P
  * smoke test on each keypress.
@@ -67,7 +67,7 @@ int main(void)
     fill_test_map(map);
     fill_test_frame(chunky);
 
-    printf("STDOOM Accelerator ping test\n");
+    printf("DOOM Accelerator ping test\n");
     printf("Press any key to run detection/C2P, ESC to quit.\n\n");
 
     for (;;) {

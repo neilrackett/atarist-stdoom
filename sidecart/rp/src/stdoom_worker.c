@@ -1,6 +1,6 @@
 /**
  * File: stdoom_worker.c
- * Description: STDOOM Accelerator worker (Core 0).
+ * Description: DOOM Accelerator worker (Core 0).
  *
  * Milestone 2: synchronous, single-slot C2P. The worker publishes a ready
  * magic at boot, seeds the random token, answers CMD_STDOOM_PING by writing a
@@ -24,7 +24,7 @@
 extern unsigned int __rom_in_ram_start__;
 
 /* Version string returned by PING. */
-#define STDOOM_VERSION_STRING "STDOOM Accelerator/1.0"
+#define STDOOM_VERSION_STRING "DOOM Accelerator/1.0"
 
 /* Cached addresses (set in stdoom_worker_init, read-only thereafter). */
 static uint32_t s_rom_base;
@@ -125,18 +125,31 @@ static void stdoom_reset_buffers(void) {
   memset(s_planar_words, 0, sizeof(s_planar_words));
 }
 
-static void stdoom_pack_to_planar(void) {
-  uint16_t blocks_per_row = (uint16_t)(s_frame_width / 16u);
+/* C2P for an arbitrary word-aligned sub-rectangle.
+ *
+ * rx must be a multiple of 16.  The converted words are written into the
+ * correct offsets of s_planar_words (the s_planar_words array is kept intact
+ * outside the rect so partial updates in later milestones compose correctly).
+ * Only the rows [ry..ry+rh) are then copied to s_planar_mem, leaving the rest
+ * of ROM-in-RAM slot 0 undisturbed.
+ *
+ * For the full-frame case (rx=0, ry=0, rw=s_frame_width, rh=s_frame_height)
+ * the result is byte-identical to the previous single-call memcpy path.
+ *
+ * NO byte-swap on the copy to s_planar_mem — the ST reads uint16 values
+ * directly and the plane words are already in the correct form.
+ */
+static void stdoom_pack_to_planar_rect(uint16_t rx, uint16_t ry,
+                                       uint16_t rw, uint16_t rh) {
   uint16_t words_per_row = (uint16_t)(s_frame_width / 4u);
-  uint16_t rows = s_frame_height;
+  uint16_t blk_start = (uint16_t)(rx / 16u);
+  uint16_t blk_count = (uint16_t)(rw / 16u);
 
-  memset(s_planar_words, 0, sizeof(s_planar_words));
-
-  for (uint16_t y = 0; y < rows; y++) {
+  for (uint16_t y = ry; y < ry + rh; y++) {
     const uint8_t *row = &s_chunky_frame[(uint32_t)y * s_chunky_pitch];
     uint16_t *dst_row = &s_planar_words[(uint32_t)y * words_per_row];
 
-    for (uint16_t blk = 0; blk < blocks_per_row; blk++) {
+    for (uint16_t blk = blk_start; blk < blk_start + blk_count; blk++) {
       uint16_t plane0 = 0;
       uint16_t plane1 = 0;
       uint16_t plane2 = 0;
@@ -159,12 +172,10 @@ static void stdoom_pack_to_planar(void) {
     }
   }
 
-  /* Copy the packed plane words straight through WITHOUT a byte swap. The plane
-   * words are already the exact 16-bit values the ST shifter needs (px0 at
-   * bit15), and the ST CPU reads ROM-in-RAM uint16 values directly (same as the
-   * result-string path). Byte-swapping here would exchange the two 8-pixel
-   * halves of every 16-pixel group, scrambling columns. */
-  memcpy((void *)s_planar_mem, s_planar_words, STDOOM_PLANAR_SIZE);
+  /* Copy only the rows that were updated to ROM-in-RAM. */
+  memcpy((void *)(s_planar_mem + (uint32_t)ry * words_per_row),
+         s_planar_words + (uint32_t)ry * words_per_row,
+         (uint32_t)rh * words_per_row * 2u);
 }
 
 static bool stdoom_diag_should_log(uint32_t count) {
@@ -350,13 +361,39 @@ static void stdoom_dispatch_command(const TransmissionProtocol *proto) {
       break;
     }
     case CMD_STDOOM_C2P: {
+      /* Rect parameters are optional (added in Milestone 3).
+       * d3 = (rx<<16)|ry, d4 = (rw<<16)|rh.  payload16 indices: d3.low at
+       * [0], d3.high at [1], d4.low at [2], d4.high at [3] (RP2040 reads the
+       * big-endian m68k words in memory order).  When absent, use full frame.
+       * payload_size includes the 4-byte token, so >= 12 means d3+d4 present. */
+      uint16_t rx = 0;
+      uint16_t ry = 0;
+      uint16_t rw = s_frame_width;
+      uint16_t rh = s_frame_height;
+
+      if (proto->payload_size >= 12u) {
+        uint32_t d3 = ((uint32_t)params16[1] << 16) | params16[0];
+        uint32_t d4 = ((uint32_t)params16[3] << 16) | params16[2];
+        rx = (uint16_t)(d3 >> 16) & ~15u;
+        ry = (uint16_t)(d3 & 0xFFFFu);
+        rw = (uint16_t)(d4 >> 16);
+        rh = (uint16_t)(d4 & 0xFFFFu);
+        /* Clamp to frame bounds. */
+        if (rx >= s_frame_width)  rx = 0;
+        if (ry >= s_frame_height) ry = 0;
+        if (rw == 0 || rx + rw > s_frame_width)  rw = s_frame_width - rx;
+        if (rh == 0 || ry + rh > s_frame_height) rh = s_frame_height - ry;
+      }
+
       s_diag_c2p_count++;
       if (stdoom_diag_should_log(s_diag_c2p_count)) {
-        DPRINTF("stdoom_dispatch: C2P #%lu\n",
-                (unsigned long)s_diag_c2p_count);
+        DPRINTF("stdoom_dispatch: C2P #%lu rx=%u ry=%u rw=%u rh=%u\n",
+                (unsigned long)s_diag_c2p_count,
+                (unsigned)rx, (unsigned)ry, (unsigned)rw, (unsigned)rh);
       }
+
       *s_status_mem = STDOOM_BUS_BYTE_WORD(STDOOM_STATUS_BUSY);
-      stdoom_pack_to_planar();
+      stdoom_pack_to_planar_rect(rx, ry, rw, rh);
       *s_status_mem = STDOOM_BUS_BYTE_WORD(STDOOM_STATUS_DONE);
       stdoom_send_response(random_token);
       break;
@@ -400,7 +437,7 @@ void stdoom_worker_init(void) {
   *s_ready_mem = STDOOM_READY_WORD;
   s_dispatch_armed = true;
 
-  DPRINTF("STDOOM Accelerator ready. PING=0x%02X\n", CMD_STDOOM_PING);
+  DPRINTF("DOOM Accelerator ready. PING=0x%02X\n", CMD_STDOOM_PING);
 }
 
 /* TEMPORARY: publish the diagnostic counters into spare shared-memory slots so

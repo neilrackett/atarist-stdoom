@@ -21,9 +21,9 @@ debug: tests
 	@echo "Using APP_UUID_KEY: $(APP_UUID_KEY_RESOLVED)"
 	./build.sh pico debug "$(APP_UUID_KEY_RESOLVED)"
 
-## Build both standalone test apps.
+## Build all standalone test apps.
 .PHONY: tests
-tests: pingtest c2ptest
+tests: pingtest c2ptest recttest
 
 ## Build the standalone ping smoke test app.
 .PHONY: pingtest
@@ -41,6 +41,15 @@ c2ptest:
 		-I sidecart/tests -I linuxdoom-1.10 \
 		-o sidecart/tests/C2PTEST.TOS \
 		sidecart/tests/c2ptest.c linuxdoom-1.10/sidecart_md.c \
+		linuxdoom-1.10/sidecart_stubs.S
+
+## Build the standalone rect C2P test app.
+.PHONY: recttest
+recttest:
+	ST_WORKING_FOLDER=$(ROOT_DIR) stcmd m68k-atari-mint-gcc -O2 \
+		-I sidecart/tests -I linuxdoom-1.10 \
+		-o sidecart/tests/RECTTEST.TOS \
+		sidecart/tests/recttest.c linuxdoom-1.10/sidecart_md.c \
 		linuxdoom-1.10/sidecart_stubs.S
 
 ## Tag this version

@@ -1,6 +1,6 @@
 /**
  * File: stdoom_protocol.c
- * Description: Protocol-only DMA bridge for STDOOM Accelerator (no terminal UI side
+ * Description: Protocol-only DMA bridge for DOOM Accelerator (no terminal UI side
  *              effects). Decodes the SidecarTridge transmission protocol off
  *              the cartridge bus and publishes completed commands to Core 0.
  */

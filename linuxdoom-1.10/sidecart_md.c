@@ -1,6 +1,6 @@
 /**
  * File: sidecart_md.c
- * Description: STDOOM Accelerator ST-side client library implementation.
+ * Description: DOOM Accelerator ST-side client library implementation.
  *
  * Wraps the SidecarTridge low-level command protocol (send_sync, implemented
  * in sidecart_stubs.S) for use from the Doom C code. Register marshalling is
@@ -134,13 +134,51 @@ static void sidecart_md_cache_guard_end(sidecart_md_cache_guard_t *guard) {
   guard->active = 0;
 }
 
+/* ── Interrupt mask around the cartridge-bus protocol ─────────────────────── */
+/* The SidecarTridge command transport drives the RP2040 via timing-critical
+ * ROM3 bus reads (see sidecart_stubs.S). If an MFP/timer interrupt fires in the
+ * middle of a command — e.g. the keyboard interrupt on a menu cursor keypress,
+ * or a menu-sound timer — it stalls the read sequence, the RP2040's parser sees
+ * a corrupted command, drops it, and the ST's token wait times out. The frame
+ * then falls back to the software renderer, which is visible as a brief
+ * dithered flash during menu navigation. Raising the 68000 IPL to 7 around each
+ * command keeps the read sequence atomic.
+ *
+ * MOVE-to-SR is privileged, so we only mask once rendering has started (always
+ * supervisor mode after I_Init). The one-time detect/INIT/SET_MAP commands run
+ * in user mode during D_DoomMain with masking disabled, so no privileged SR
+ * write is ever executed in user mode. Enabled via sidecart_md_set_intr_mask(1)
+ * from sidecart_c2p_install(). */
+static int s_mask_intr = 0;
+
+void sidecart_md_set_intr_mask(int enable) { s_mask_intr = enable; }
+
+static unsigned short sidecart_md_intr_begin(void) {
+  unsigned short saved = 0;
+  if (s_mask_intr) {
+    __asm__ volatile("move.w %%sr,%0\n\t"
+                     "ori.w  #0x0700,%%sr"
+                     : "=d"(saved) : : "cc");
+  }
+  return saved;
+}
+
+static void sidecart_md_intr_end(unsigned short saved) {
+  if (s_mask_intr) {
+    __asm__ volatile("move.w %0,%%sr" : : "d"(saved) : "cc");
+  }
+}
+
 static int sidecart_md_guarded_send_sync_command(int cmd, int payload_size,
                                                  long d3, long d4) {
   sidecart_md_cache_guard_t guard;
+  unsigned short isr;
   int rc;
 
   sidecart_md_cache_guard_begin(&guard);
+  isr = sidecart_md_intr_begin();
   rc = stdoom_send_sync_command(cmd, payload_size, d3, d4);
+  sidecart_md_intr_end(isr);
   sidecart_md_cache_guard_end(&guard);
   return rc;
 }
@@ -149,11 +187,14 @@ static int sidecart_md_guarded_send_sync_write_command(
     int cmd, const char *buf, int byte_count, int chunk_idx, int total_chunks,
     int chunk_size) {
   sidecart_md_cache_guard_t guard;
+  unsigned short isr;
   int rc;
 
   sidecart_md_cache_guard_begin(&guard);
+  isr = sidecart_md_intr_begin();
   rc = stdoom_send_sync_write_command(
       cmd, buf, byte_count, chunk_idx, total_chunks, chunk_size);
+  sidecart_md_intr_end(isr);
   sidecart_md_cache_guard_end(&guard);
   return rc;
 }
@@ -299,6 +340,14 @@ int sidecart_md_blit_rows(unsigned short y, unsigned short rows,
       ((int)width << 16) | (int)rows, ((int)pitch << 16));
 }
 
+int sidecart_md_c2p_rect(unsigned short x, unsigned short y,
+                         unsigned short w, unsigned short h) {
+  return sidecart_md_send_sync_command_once(
+      CMD_STDOOM_C2P, 8,
+      ((long)x << 16) | (long)y,
+      ((long)w << 16) | (long)h);
+}
+
 int sidecart_md_c2p(void) {
-  return sidecart_md_send_sync_command_once(CMD_STDOOM_C2P, 0, 0L, 0L);
+  return sidecart_md_c2p_rect(0, 0, STDOOM_FRAME_WIDTH, STDOOM_FRAME_HEIGHT);
 }

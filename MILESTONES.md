@@ -1,12 +1,11 @@
-# STDOOM Accelerator Microfirmware (in atarist-stdoom/sidecart) — progressive, simplest-first
+# DOOM Accelerator Microfirmware (in atarist-stdoom/sidecart) — progressive, simplest-first
 
 ## Context
 
-STDOOM (Atari ST Doom port) on its `turbo` branch is CPU-bound on a stock 8 MHz
-68000. A large fixed per-frame cost is **C2P (chunky-to-planar) conversion** —
+STDOOM (Atari ST Doom port) on its `turbo` branch is CPU-bound on a stock 8 MHz 68000. A large fixed per-frame cost is **C2P (chunky-to-planar) conversion** —
 turning the 320×200 8bpp chunky framebuffer into the ST's interleaved 4-plane
-low-res format. We want to offload that (and, later, *anything in the render
-pipeline*) to a **SidecarTridge Multi-device** RP2040 cartridge when present,
+low-res format. We want to offload that (and, later, _anything in the render
+pipeline_) to a **SidecarTridge Multi-device** RP2040 cartridge when present,
 keeping the existing software path as a fallback.
 
 This follows the proven workspace pattern: **md-sdl** firmware + **atarist-sdl**'s
@@ -15,7 +14,8 @@ example of the detection/command transport (same `m68k-atari-mint-gcc` toolchain
 STDOOM uses).
 
 ### Guiding principle (user): simplest thing that works, first
-Get *something running* as early as possible, even if imperfect/slower, then
+
+Get _something running_ as early as possible, even if imperfect/slower, then
 evolve. The decisions below deliberately take the leanest path and supersede the
 earlier async/dynamic-dither choices:
 
@@ -51,8 +51,9 @@ Milestone 1 is complete. The code currently in the repo implements a synchronous
 PING handshake plus a clean host-side fallback when the accelerator is absent.
 
 ### 1A. Firmware implementation in `sidecart/`
+
 - `sidecart/rp/src/stdoom_worker.c` publishes the ready magic at boot, seeds the
-  token, answers `CMD_STDOOM_PING`, writes `STDOOM Accelerator/1.0` into the
+  token, answers `CMD_STDOOM_PING`, writes `DOOM Accelerator/1.0` into the
   shared result buffer, and echoes the token back to the ST.
 - `sidecart/rp/src/stdoom_protocol.c` and
   `sidecart/rp/src/include/stdoom_protocol.h` provide the cartridge-bus protocol
@@ -62,6 +63,7 @@ PING handshake plus a clean host-side fallback when the accelerator is absent.
 - `sidecart/target/atarist/src/main.s` is the cartridge loader stub.
 
 ### 1B. Shared memory map (ROM4 base `$FA0000`)
+
 ```
 $FA0000  planar slot 0      32000 B   (reserved for Milestone 2)
 $FAF000  random token        4 B       (echoed by the firmware)
@@ -72,6 +74,7 @@ $FAF100  result buffer    <=2048 B     (PING version string)
 ```
 
 ### 1C. Host-side detection in `linuxdoom-1.10/`
+
 - `sidecart_md_detect_verbose()` checks ready magic, reads the seed, then issues
   `CMD_STDOOM_PING`. It returns `1` on success and sets `stage` to `0/1/2/3` for
   success, ready mismatch, dead seed, or timeout.
@@ -80,17 +83,19 @@ $FAF100  result buffer    <=2048 B     (PING version string)
   - `MD ready=$XX(want $53) seed=$XXXXXXXX`
   - `MD stage=N ping=N`
   - `MD irq=%lX cmd=%lX ce=%lX lc=%lX`
-  - `MD detected: STDOOM Accelerator/1.0`
+  - `MD detected: DOOM Accelerator/1.0`
   - `MD not detected; SW C2P`
 
 ### 1D. Standalone test app
+
 - `sidecart/tests/pingtest.c` builds to `sidecart/tests/PINGTEST.TOS` via `make -C sidecart pingtest`.
 - Use it to validate SidecarTridge protocol changes before wiring them into
   STDOOM.
 
 ### Milestone 1 exit
+
 - With the sidecart firmware flashed, STDOOM reports
-  `MD detected: STDOOM Accelerator/1.0`.
+  `MD detected: DOOM Accelerator/1.0`.
 - Without the firmware, STDOOM falls back to `MD not detected; SW C2P`.
 - `make -C sidecart pingtest` produces `sidecart/tests/PINGTEST.TOS`, which is the preferred
   place to exercise new SidecarTridge features before touching STDOOM proper.
@@ -132,6 +137,7 @@ accelerator on a Mega STE at **16 MHz + cache**, with correct geometry.
   order against real Doom output, not the smooth gradient.
 
 ### 2A. Firmware: add commands + a minimal Core 0 C2P
+
 - New commands: `CMD_STDOOM_INIT 0x11` (d3=(w<<16|h)), `CMD_STDOOM_SET_MAP 0x12`
   (upload the 256-byte `doom8_to_st4` reduction map, once at init),
   `CMD_STDOOM_BLIT_ROWS 0x13` (chunky rows: d3=y, d4=(w<<16|rows),
@@ -146,6 +152,7 @@ accelerator on a Mega STE at **16 MHz + cache**, with correct geometry.
   are already what the shifter needs. No dither, no per-line phase.
 
 ### 2B. Host: reduction map + `c2p_screen_md` + planar copy
+
 - Build `doom8_to_st4[256]` in `c2p_md_init` from `mix_weights_lorez` (index of
   the largest weight in each row = nearest ST colour). Send it once via
   `CMD_STDOOM_SET_MAP`. Rebuild/resend if the DOOM palette changes
@@ -157,7 +164,7 @@ accelerator on a Mega STE at **16 MHz + cache**, with correct geometry.
   - Else: upload `in` (= `screens[0]`) in ~6-row chunks (≈1920 B, under the ~2096
     payload cap) via `send_sync_write`; send `CMD_STDOOM_C2P` and wait for the
     token (synchronous); then copy planar slot 0 → `out` (= `st_screen =
-    Physbase()`).
+Physbase()`).
   - **`sidecart_md_copy_planar_to_screen(PLANAR0, out)`** — port md-sdl's
     `md_copy_planar_to_screen` (`SDL_xbios_md.c`): STE blitter fast path when
     `_MCH` is STE/MegaSTE, else plain-ST CPU longword loop. This copy is what
@@ -188,11 +195,42 @@ accelerator on a Mega STE at **16 MHz + cache**, with correct geometry.
 
 ## Milestone 3 — full C2P replacement (all screens via the accelerator)
 
+### Current status: complete
+
+Complete and confirmed on hardware (Mega STE, 16 MHz + cache). All screens
+(splash, menus, intermission/finale, automap, status bar, gameplay) render
+through the accelerator, with dirty-rect support for the shrunk gameplay view
+and the status bar. `atari_c2p.c` is pure software again; all sidecart code
+lives in `sidecart_c2p.c` and installs over the software function pointers via
+`sidecart_c2p_install()`.
+
+Hard-won fixes during M3 (do not regress):
+
+- **Blitter from ROM4 is unreliable for sub-rects.** A multi-row blit
+  (`X_COUNT=80, Y_COUNT=h`) tears on the last rows (the beam outruns the blit),
+  and a blit with `INC_Y!=0` (true sub-rect) produces stripe corruption. The
+  planar→screen copy uses a linear blit (`X_COUNT=total, Y_COUNT=1`) only for
+  full-width rects, and a CPU row-by-row copy for true sub-rects.
+- **Inverted/empty dirty box.** The software `c2p_statusbar` wrapper forces
+  `y_begin` up to `SCREENHEIGHT-32`; when the dirty box is entirely a top-screen
+  HUD message that yields `y_begin > y_end`. `c2p_statusbar_md` must reject
+  `y_end <= y_begin || x_end <= x_begin` first — otherwise the unsigned
+  width/height underflows and the copy runs off screen RAM (2-bomb crash).
+- **Shrunk-view border.** Doom draws the GRNROCK view border into `screens[0]`
+  only on the few frames after a view-size change or menu/automap dismissal
+  (its `borderdrawcount=3`). The partial-view path forces a full-frame push for
+  3 ticks whenever the border may have been redrawn so it reaches the screen.
+- **Interrupt masking.** The bus protocol's ROM3 reads must be atomic — an MFP
+  keyboard/timer interrupt mid-command corrupts it and bounces the frame to the
+  software renderer (visible as a dithered flash on menu keypresses). Each
+  per-frame command raises the 68000 IPL to 7 (`sidecart_md_set_intr_mask(1)`,
+  supervisor only).
+
 ### Goal
 
 When the accelerator is present, route **all** graphics/C2P through it, not just
 1× low-res gameplay: the splash screen, menus, intermission/finale, automap, and
-status bar. Effectively, the sidecart C2P *replaces* the software C2P entirely
+status bar. Effectively, the sidecart C2P _replaces_ the software C2P entirely
 for the duration of the session (with software remaining the fallback only when
 no accelerator is detected). Note the gameplay status bar is already accelerated
 in M2 (the full 320×200 `screens[0]`, including the bottom 32 rows, goes through
@@ -266,39 +304,122 @@ end-to-end:
 
 ---
 
-## Milestone 4 — dynamic palette + dither modes
+## Milestone 4 — richer palette + dither modes
 
 ### Goal
 
-Replace the crude fixed nearest-colour reduction with a **dynamic 16-colour
-palette** and **selectable dither modes**, primarily as a testbed for image
-quality.
+Replace the crude fixed nearest-colour reduction with **selectable rendering
+modes** (nearest-colour, greyscale, Bayer dithering) and keep the pipeline
+interface identical regardless of which mode is active.
 
-- **Dynamic palette generation:** build the 16-colour ST palette from the active
-  DOOM palette per frame/scene — e.g. median cut for colour, or a luminance ramp
-  for greyscale — instead of mapping to a fixed ST palette.
-- **Dither / colour modes (for testing):**
-  - none (flat nearest-colour, as M2)
-  - greyscale
-  - 2×2 Bayer dithering
-  - 4×4 Bayer dithering
-- **Mode selection:** runtime switching is the goal; compile-time selection is an
-  acceptable first step.
+### How DOOM's palette actually works
+
+DOOM's `PLAYPAL` lump contains **14 fixed 256-colour palettes** baked into the
+WAD: palette 0 is normal, 1–8 are damage (progressively red-shifted), 9–12 are
+bonus pickup (gold-shifted), and 13 is the radiation suit (green-shifted).
+`I_SetPalette` is called only **when the active palette index changes** — player
+takes a hit, picks something up, recovers — which is infrequent and
+event-driven, not per-frame. A guard in `st_stuff.c` ensures it is a no-op when
+the index is unchanged.
+
+### Pipeline architecture
+
+The host-RP2040 interface is fixed and mode-agnostic:
+
+```
+On I_SetPalette:
+  CMD_STDOOM_SET_PALETTE  →  768 bytes (256 × RGB) of active DOOM palette
+                          ←  32 bytes (16 × RGB) of chosen ST output colours
+  Host writes ST hardware palette registers from the returned 16 colours.
+
+Each frame (unchanged from M3):
+  BLIT_ROWS               →  raw 8bpp chunky pixel data (64000 bytes)
+  CMD_STDOOM_C2P          →  RP2040 processes in selected mode → planar slot 0
+```
+
+`CMD_STDOOM_SET_MAP` is retired. The RP2040 now owns all colour-reduction logic
+and derives whatever internal data structure its current mode needs from the raw
+RGB palette. The 16 chosen output colours are written back to a known shared
+memory location in ROM-in-RAM; the host reads them once and sets the hardware
+registers.
+
+### Rendering modes
+
+All modes take 8bpp chunky in and produce 4bpp planar out. The RP2040 selects
+the active mode via a field in `CMD_STDOOM_INIT` or a new `CMD_STDOOM_SET_MODE`
+command.
+
+- **Nearest-colour** (as M2, but now updated per `I_SetPalette`): map each pixel
+  directly to the closest of the 16 chosen ST colours.
+- **Greyscale**: convert each pixel to luminance, map to a greyscale ramp across
+  the 16 output colours.
+- **2×2 Bayer dithering**: use a 2×2 ordered dither matrix and each pixel's two
+  nearest ST colours to simulate intermediate shades spatially.
+- **4×4 Bayer dithering**: same with a 4×4 matrix for finer gradation.
 
 ### Notes
 
-- The RP2040 already receives a 256→16 reduction map (`SET_MAP`); M4 generalises
-  how that map (and the ST palette) is computed, and adds the dither stage in the
-  RP2040 C2P (`stdoom_pack_to_planar`).
 - `atari_c2p.c`'s existing `mix_weights_*` / Bayer tables are a useful reference
   for the dither maths.
+- Since `I_SetPalette` fires rarely (on player state change, not per frame), the
+  768-byte palette upload and 32-byte readback are negligible overhead.
+- The shared memory location for the returned 16 ST colours needs a new slot in
+  the ROM-in-RAM map (a new offset in `stdoom_commands.h`).
 
 ### M4 exit criteria
 
-- The ST palette is generated dynamically (colour and greyscale) rather than
-  fixed.
-- All four dither/colour modes are selectable (runtime or compile-time) and
-  visibly distinct.
+- `CMD_STDOOM_SET_PALETTE` replaces `CMD_STDOOM_SET_MAP`; the RP2040 returns the
+  chosen 16 ST colours and the host applies them to the hardware registers.
+- All four rendering modes are selectable (runtime or compile-time) and visibly
+  distinct.
+- Switching DOOM palette (taking damage, picking up bonus) correctly updates the
+  ST hardware palette and the RP2040's internal colour data.
+
+---
+
+## Milestone 5 — async data processing
+
+### Goal
+
+Decouple game-logic time from RP2040 C2P time by making C2P dispatch
+**non-blocking**: the ST fires the C2P command and immediately returns to game
+logic (AI, physics, input) without waiting for the token. It synchronises only
+at the point it actually needs the planar output — e.g. at vsync before the
+planar copy. This hides RP2040 conversion latency behind 68000 work with no
+extra memory cost and no protocol changes to `sidecart_stubs.S`.
+
+### Motivation
+
+In M3's synchronous model the ST stalls for the full token round trip after
+every C2P command. If game logic takes longer than the RP2040's conversion time
+(likely on a stock 8 MHz 68000), that stall is pure waste. Non-blocking dispatch
+eliminates it with minimal complexity.
+
+### Key design decisions
+
+- **Single planar slot** — no second buffer needed. The ST simply does not
+  write new chunky data or read the planar slot until it has confirmed the token,
+  so there is no race on the existing shared memory.
+- **Non-blocking send**: issue the C2P command without spinning on the token;
+  store the expected token locally and check it (with timeout) only when the
+  planar copy is about to happen.
+- **`sidecart_stubs.S` unchanged** — the token handshake is identical; only the
+  ST-side polling point moves later in the frame.
+- **Synchronous path remains** as a compile-time or runtime fallback.
+
+### If upload time proves significant (post-M5)
+
+If profiling after M5 shows that chunky upload itself is a bottleneck, a second
+chunky staging buffer (not a second planar slot) could allow overlapping the next
+upload with the current conversion — but this is deferred until measurement
+justifies the added complexity.
+
+### M5 exit criteria
+
+- The ST fires C2P and returns immediately to game logic.
+- Synchronisation (token wait) occurs only just before the planar copy at vsync.
+- No tearing or corruption at 16 MHz + cache on Mega STE.
+- Synchronous path (M3) still selectable as fallback.
 
 ---
 
@@ -315,15 +436,16 @@ implementations.
 ---
 
 ## Verification
+
 - **Build firmware:** `cd /Users/neil/Projects/__OS/atarist-stdoom/sidecart &&
-  ./build.sh pico release <new-uuid>` → UF2 + JSON in `dist/`; `target/atarist`
+./build.sh pico release <new-uuid>` → UF2 + JSON in `dist/`; `target/atarist`
   builds `BOOT.BIN` via its Makefile.
 - **Build host:** `cd /Users/neil/Projects/__OS/atarist-stdoom/linuxdoom-1.10 &&
-  make` → `atari/build/STDOOM.TOS` (+ `STDOOM20/2F.TOS`); confirm `sidecart_md.o`
+make` → `atari/build/STDOOM.TOS` (+ `STDOOM20/2F.TOS`); confirm `sidecart_md.o`
   and `sidecart_stubs.o` link.
 - **PING (M1):** run `make -C sidecart pingtest` and exercise `sidecart/tests/PINGTEST.TOS` to
   validate detection and version reporting, then flash the UF2 and run STDOOM to
-  confirm `MD detected: STDOOM Accelerator/1.0`. Flash a different firmware to
+  confirm `MD detected: DOOM Accelerator/1.0`. Flash a different firmware to
   confirm software fallback (`MD not detected; SW C2P`).
 - **C2P (M2):** in a 1× low-res level, confirm displayed frames have correct
   geometry/no garbage. Validate planar byte order by C2P-ing a known horizontal
@@ -333,13 +455,14 @@ implementations.
 
 ### Status note
 
-Milestones 1 and 2 are complete and confirmed on hardware (Mega STE, 16 MHz +
-cache). Next up is Milestone 3 (status bar offload).
+Milestones 1, 2 and 3 are complete and confirmed on hardware (Mega STE, 16 MHz +
+cache). Next up is Milestone 4 (richer palette + dither modes).
 
 ## Critical files
+
 - **Destination (single repo):** `atarist-stdoom/sidecart/` (firmware) +
   `atarist-stdoom/linuxdoom-1.10/` (host client).
-- `/Users/neil/Projects/__OS/md-js/` — source to copy *from*;
+- `/Users/neil/Projects/__OS/md-js/` — source to copy _from_;
   `rp/src/{mdjs_protocol.c, js_worker.c, emul.c}`,
   `target/atarist/src/{sidecart_stubs.S, mdjs.c, mdjs.h}`.
 - `/Users/neil/Projects/__OS/md-sprites-demo/target/atarist/src/main.s` — the
@@ -347,15 +470,96 @@ cache). Next up is Milestone 3 (status bar offload).
   register offsets). Prefer this for copy/blitter questions.
 - `/Users/neil/Projects/__OS/md-sdl/` — EXPERIMENTAL, not a source of truth.
   `rp/src/emul.c` (`sdl_c2p`) and `src/video/xbios/SDL_xbios_md.c` are useful for
-  *structure/ideas* (and the documented Mega STE `$FF`/`$FE`/`$F4` register
+  _structure/ideas_ (and the documented Mega STE `$FF`/`$FE`/`$F4` register
   values in `SDL_megaste.c`), but verify anything before relying on it.
 - `/Users/neil/Projects/__OS/atarist-stdoom/linuxdoom-1.10/{i_video.c,
-  atari_c2p.c, atari_c2p.h, Makefile}` — host integration points.
+atari_c2p.c, atari_c2p.h, sidecart_c2p.c, sidecart_c2p.h, sidecart_md.c,
+sidecart_md.h, Makefile}` — host integration points. Since M3, `atari_c2p.c` is
+pure software and all sidecart-accelerated C2P lives in `sidecart_c2p.c`.
 
-## Deferred (future phases, beyond M3/M4)
-- Async double-buffering (two slots + mailbox; would relocate the token block and
-  edit `sidecart_stubs.S` constants).
-- Offloading further render-pipeline work (column/span drawing, palette FX).
+## Deferred — future offload candidates (thought exercise)
 
-(Dynamic palette + Bayer dither is now **Milestone 4**; full-pipeline / all-screen
-offload is now **Milestone 3**.)
+Nothing below is planned or scoped. These are possibilities worth remembering if
+the RP2040 offload approach proves fruitful beyond M5.
+
+### STDOOM-specific
+
+- **Column and span rendering** (`R_DrawColumn`, `R_DrawSpan`) — the hottest
+  loops in the software renderer, drawing texture-mapped columns and floor/ceiling
+  spans. Offloading these would require streaming draw commands (wall segment
+  descriptors, span endpoints, texture data) to the RP2040 and reading back a
+  rendered strip — significant protocol work but potentially the biggest framerate
+  gain.
+- **Sound mixing** — the ST has no hardware PCM mixer; all channel mixing is done
+  by the 68000 at interrupt time. The RP2040 could mix channels into a DMA-ready
+  buffer and push it to ST RAM, removing the per-sample interrupt load entirely.
+- **Screen wipe / melt transitions** — the level-end melt effect runs a per-column
+  scroll that is cheap but measurable; easy to offload as a post-process on the
+  planar output already in ROM-in-RAM.
+- **Palette FX** — damage flash, radiation suit green tint, and bonus gold pulse
+  are currently done by rewriting the ST hardware palette registers each tick.
+  The RP2040 could maintain a "base" palette and apply tint transforms on request,
+  removing the per-frame colour-math from the 68000.
+- **Automap line drawing** — the overhead map draws hundreds of lines per frame
+  into the chunky buffer; a simple line-drawing command would let the RP2040 fill
+  a chunky or planar layer without touching the 68000.
+
+### Broader SDL driver / general ST use
+
+- **Arbitrary C2P** — C2P for modes beyond 320×200×4bpp: ST medium res (640×200
+  2bpp), high res (640×400 1bpp), or STE extended palette (4096 colour). The
+  RP2040 is fast enough to handle any ST video mode given the right reduction map.
+- **Framebuffer scaling** — scaling a small chunky buffer (e.g. 160×100 for a
+  double-pixel zoom mode) up to 320×200 before C2P, or letterboxing a 4:3 source
+  into the ST's fixed resolution. Useful for any SDL app that renders at less than
+  native resolution.
+- **Sprite / surface compositing** — blitting a source surface onto a destination
+  with transparency (colour-key or 1-bit mask) in chunky space before C2P.
+  Removes the most common SDL_BlitSurface hot path from the 68000.
+- **Font / glyph rendering** — stamping a glyph atlas into a chunky surface at a
+  given position; useful for any text-heavy SDL app (UI, debug overlays).
+- **2D primitive rendering** — filled rectangles, horizontal/vertical lines,
+  circles. Primitive enough to be a general "chunky GPU" command set.
+- **Audio mixing / DSP** — same argument as STDOOM but as a general SDL_mixer
+  back-end: the RP2040 mixes N software channels and writes the result to ST DMA
+  sound RAM, with optional simple effects (volume, panning, low-pass filter).
+- **Asset decompression** — LZ4 or similar decompression of compressed WAD lumps
+  or sprite sheets into ST RAM, hiding load latency behind the 68000's other work.
+  Particularly useful on floppy-based systems where load time dominates.
+- **YUV/RGB conversion** — for video playback (Cinepak, FLIC) the RP2040 could
+  convert a compressed colour frame to chunky ST palettised output in one pass,
+  enabling video that the 68000 alone could not decode and display in real time.
+
+### Upload optimisations
+
+- **Row-level skip** — maintain a 200-bit dirty mask tracking which rows the
+  renderer touched in a given frame and skip unchanged rows in `BLIT_ROWS`. Large
+  uniform areas (sky, ceiling, floor) are often identical frame-to-frame. Cheap
+  to maintain; combines naturally with the existing dirty-rect logic.
+- **Larger chunk size** — `BLIT_ROWS` currently sends fixed 6-row chunks. If
+  per-chunk protocol overhead is significant, fewer larger chunks per frame may
+  be faster. Worth profiling before assuming the current size is optimal.
+- **Simple RLE (PackBits-style)** — a compare-and-count loop over adjacent bytes
+  is much simpler than full LZ compression and may be feasible on the 68000 for
+  typical Doom scenes, which tend to have long runs (uniform sky, flat floors,
+  repeated wall columns). The RP2040 decompression is essentially free. Worth
+  benchmarking to see if the 68000 encoding cost is outweighed by the reduced
+  upload time.
+
+### Notes
+
+- The RP2040 has ~264 KB SRAM and two cores. Many of the above could run on Core
+  1 while Core 0 handles the protocol, but SRAM limits how much intermediate
+  buffer space is available concurrently.
+- A general "chunky GPU" command set (compositing, scaling, primitives) would make
+  the SidecarTridge a broadly useful coprocessor for any TOS or SDL application,
+  not just STDOOM — which is the longer-term SDL driver motivation.
+
+---
+
+## Other deferred items
+
+- Resolving cartridge load timing to present "DOOM Accelerator ready" during ST boot.
+
+(Dynamic palette + Bayer dither is **Milestone 4**; full-pipeline / all-screen
+offload is **Milestone 3**; non-blocking C2P dispatch is **Milestone 5**.)
