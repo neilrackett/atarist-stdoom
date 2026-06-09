@@ -326,6 +326,14 @@ void I_InitGraphics(void)
     old_interrupt_handler = *(void**)0x118;
     *(void**)0x118 = keyboard_interrupt;
     printf("Initializing c2p tables...\n");
+    int w16 = M_CheckParm("-w16");
+    if (w16 && w16 + 1 < myargc) {
+        atari_try_install_w16(myargv[w16 + 1]);
+    } else if (w16) {
+        printf("W16: missing file argument for -w16\n");
+    } else {
+        atari_try_install_default_w16();
+    }
     init_c2p_table();
     save_palette(old_palette);
     draw_palette_table(st_screen);
