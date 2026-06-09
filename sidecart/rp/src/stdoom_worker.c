@@ -156,12 +156,16 @@ static uint16_t stdoom_st_color_word(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 /* The intensity (0..255) the ST actually displays for an 8-bit channel value,
- * i.e. after it has been quantised to the hardware 4-bit nibble. The nibble
- * (stdoom_convert_channel) is what the shifter shows linearly as nibble*17, so
- * matching DOOM colours against THIS (not the idealised RGB) makes the LUT
- * agree with what is on screen. */
+ * after quantisation to the hardware 4-bit nibble.
+ *
+ * Despite the STE's unusual nibble encoding (the "extra" STE bit is stored at
+ * nibble bit 3, the MSB, while colour bits 3:1 occupy bits 2:0), the actual
+ * 4-bit colour value is simply the top nibble of the 8-bit input.  Using
+ * stdoom_convert_channel(v) * 17 is WRONG: convert_channel(16) = 8, giving
+ * a displayed intensity of 136 instead of 17.  The correct formula is just
+ * (v >> 4) * 17 — top nibble times the STE step size. */
 static uint8_t stdoom_displayed_channel(uint8_t v) {
-  return (uint8_t)(stdoom_convert_channel(v) * 17u);
+  return (uint8_t)(((uint16_t)(v >> 4)) * 17u);
 }
 
 /* Perceptual colour distance (Riemersma "redmean" approximation): a green-
