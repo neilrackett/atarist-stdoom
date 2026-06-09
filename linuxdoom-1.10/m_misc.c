@@ -59,6 +59,8 @@ rcsid[] = "$Id: m_misc.c,v 1.6 1997/02/03 22:45:10 b1 Exp $";
 
 #include "m_misc.h"
 
+#include "sidecart_c2p.h"		/* render_mode + STDOOM_DEFAULT_RENDER_MODE */
+
 //
 // M_DrawText
 // Returns the final X coordinate
@@ -281,7 +283,8 @@ default_t	defaults[] =
 
     {"snd_channels",&numChannels, 3},
 
-
+    {"render_mode",&render_mode, STDOOM_DEFAULT_RENDER_MODE},
+    {"palette_gen",&palette_gen, STDOOM_DEFAULT_PALETTE_GEN},
 
     {"usegamma",&usegamma, 0},
 

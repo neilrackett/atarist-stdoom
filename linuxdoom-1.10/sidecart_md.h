@@ -20,6 +20,20 @@
 #define CMD_STDOOM_SET_MAP 0x0012
 #define CMD_STDOOM_BLIT_ROWS 0x0013
 #define CMD_STDOOM_C2P 0x0014
+#define CMD_STDOOM_SET_PALETTE 0x0015
+#define CMD_STDOOM_SET_MODE 0x0016
+#define CMD_STDOOM_SET_PALGEN 0x0017
+
+/* Render modes (must match stdoom_commands.h). */
+#define STDOOM_MODE_NEAREST 0
+#define STDOOM_MODE_BAYER2 1
+#define STDOOM_MODE_BAYER4 2
+#define STDOOM_MODE_GREY 3
+#define STDOOM_MODE_COUNT 4
+
+/* Palette source for nearest/Bayer modes (must match stdoom_commands.h). */
+#define STDOOM_PALGEN_SUBSET 0
+#define STDOOM_PALGEN_GENERATED 1
 
 /* STDOOM low-res frame geometry. */
 #define STDOOM_FRAME_WIDTH 320
@@ -36,6 +50,9 @@
 #define STDOOM_SEED_ADDR ((volatile unsigned long *)0xFAF004L)
 #define STDOOM_STATUS_ADDR ((volatile unsigned char *)0xFAF008L)
 #define STDOOM_READY_ADDR ((volatile unsigned char *)0xFAF00AL)
+/* 16 chosen ST hardware-palette words returned by SET_PALETTE/SET_MODE (M4),
+ * stored in bus order so they can be read directly and written to $FF8240. */
+#define STDOOM_STCOLORS_ADDR ((volatile unsigned short *)0xFAF020L)
 #define STDOOM_RESULT_ADDR ((volatile char *)0xFAF100L)
 #define STDOOM_PLANAR0_ADDR 0xFA0000L
 
@@ -130,6 +147,41 @@ int sidecart_md_c2p_rect(unsigned short x, unsigned short y,
  * @return 0 on success, -1 on timeout.
  */
 int sidecart_md_c2p(void);
+
+/**
+ * @brief Upload the active 768-byte DOOM palette (256 x RGB) to the accelerator
+ *        (M4). The firmware reduces it to 16 ST colours for the current mode and
+ *        publishes them; read them back with sidecart_md_get_st_colors().
+ * @param rgb768 Pointer to 768 bytes (256 colours x 3 bytes R,G,B).
+ * @return 0 on success, -1 on timeout.
+ */
+int sidecart_md_set_palette(const unsigned char *rgb768);
+
+/**
+ * @brief Select the RP2040 render mode (M4): STDOOM_MODE_NEAREST/BAYER2/BAYER4/
+ *        GREY. The firmware rebuilds its colour LUT and the 16 ST colours from
+ *        the last uploaded palette.
+ * @param mode One of STDOOM_MODE_*.
+ * @return 0 on success, -1 on timeout.
+ */
+int sidecart_md_set_mode(int mode);
+
+/**
+ * @brief Select the palette source for nearest/Bayer modes (M4 Stage 3):
+ *        STDOOM_PALGEN_SUBSET (fixed hand-tuned DOOM colours) or
+ *        STDOOM_PALGEN_GENERATED (median-cut + k-means from the uploaded
+ *        palette). The firmware rebuilds its LUT and the 16 ST colours.
+ * @param gen One of STDOOM_PALGEN_*.
+ * @return 0 on success, -1 on timeout.
+ */
+int sidecart_md_set_palgen(int gen);
+
+/**
+ * @brief Read the 16 chosen ST hardware-palette words published by the last
+ *        SET_PALETTE/SET_MODE/SET_PALGEN. Stored in bus order, so copy directly.
+ * @param out16 Destination array of 16 unsigned shorts (ready for $FF8240).
+ */
+void sidecart_md_get_st_colors(unsigned short *out16);
 
 /**
  * @brief Copy the firmware version string (set by the last PING) into a C

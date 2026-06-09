@@ -56,6 +56,7 @@ void HU_Ticker(void);
 void HU_Drawer(void);
 char HU_dequeueChatChar(void);
 void HU_Erase(void);
+boolean HU_MessageActive(void);
 
 
 #endif

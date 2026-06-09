@@ -6,15 +6,25 @@
 #
 CC = m68k-atari-mint-gcc
 
-CFLAGS=-O3 -Wall -DNORMALUNIX -DLINUX -D__BIG_ENDIAN__ -DUSEASM -std=c99 -fasm
-# -mfastcall with the filter-out below builds, but immedialy crashes :-(
-#CFLAGS=-O3 -Wall -DNORMALUNIX -DLINUX -D__BIG_ENDIAN__ -DUSEASM -mfastcall -std=c99 -fasm
+FASTCALL=0
+
+# Add -mfastcall only when FASTCALL=1, and link the matching libm.a variant so
+# the calling convention agrees between Doom and libm.
+ifeq ($(FASTCALL),1)
+FASTCALLFLAG=-mfastcall
+LIBVARIANT=.fastcall
+else
+FASTCALLFLAG=
+LIBVARIANT=
+endif
+
+CFLAGS=-O3 -Wall -DNORMALUNIX -DLINUX -D__BIG_ENDIAN__ -DUSEASM $(FASTCALLFLAG) -std=c99 -fasm
 CFLAGS20=$(CFLAGS) -m68020-60 -mtune=68020 -msoft-float
 CFLAGS2F=$(CFLAGS) -m68020-60 -mtune=68020 -m68881
 LDFLAGS= -Wl,-Map=$@.map
-LDLIBS=./deps/68000.soft-float.fastcall/libm.a
-LDLIBS20=./deps/68020-60.soft-float.fastcall/libm.a
-LDLIBS2F=./deps/68020-60.68881.fastcall/libm.a
+LDLIBS=./deps/68000.soft-float$(LIBVARIANT)/libm.a
+LDLIBS20=./deps/68020-60.soft-float$(LIBVARIANT)/libm.a
+LDLIBS2F=./deps/68020-60.68881$(LIBVARIANT)/libm.a
 
 # subdirectory for objects
 O=build
@@ -108,15 +118,12 @@ clean:
 
 $(BUILDDIR)/$(TARGET):	$(OBJS) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(OBJS) -o $@ $(LDLIBS)
-#	$(CC) $(filter-out -mfastcall,$(CFLAGS)) $(OBJS) -o $@ $(LDLIBS)
 
 $(BUILDDIR)/$(TARGET20):	$(OBJS20) | $(BUILDDIR)
 	$(CC) $(CFLAGS20) $(OBJS20) -o $@ $(LDLIBS20)
-#	$(CC) $(filter-out -mfastcall,$(CFLAGS20)) $(OBJS20) -o $@ $(LDLIBS20)
 
 $(BUILDDIR)/$(TARGET2F):	$(OBJS2F) | $(BUILDDIR)
 	$(CC) $(CFLAGS2F) $(OBJS2F) -o $@ $(LDLIBS2F)
-#	$(CC) $(filter-out -mfastcall,$(CFLAGS2F)) $(OBJS2F) -o $@ $(LDLIBS2F)
 
 $(OBJDIR)/%.2f.o:	%.c | $(OBJDIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS2F) -c $< -o $@

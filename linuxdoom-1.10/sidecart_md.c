@@ -351,3 +351,35 @@ int sidecart_md_c2p_rect(unsigned short x, unsigned short y,
 int sidecart_md_c2p(void) {
   return sidecart_md_c2p_rect(0, 0, STDOOM_FRAME_WIDTH, STDOOM_FRAME_HEIGHT);
 }
+
+int sidecart_md_set_palette(const unsigned char *rgb768) {
+  if (!rgb768) {
+    return -1;
+  }
+  sidecart_md_settle_once();
+  return sidecart_md_guarded_send_sync_write_command(
+      CMD_STDOOM_SET_PALETTE, (const char *)rgb768, 768, 0, 0, 768);
+}
+
+int sidecart_md_set_mode(int mode) {
+  return sidecart_md_send_sync_command_once(CMD_STDOOM_SET_MODE, 4,
+                                            (long)mode, 0L);
+}
+
+int sidecart_md_set_palgen(int gen) {
+  return sidecart_md_send_sync_command_once(CMD_STDOOM_SET_PALGEN, 4,
+                                            (long)gen, 0L);
+}
+
+/* The firmware stores the 16 ST colour words in bus order (no swap), so the ST
+ * reads them straight from ROM-in-RAM and feeds them to the palette registers. */
+void sidecart_md_get_st_colors(unsigned short *out16) {
+  volatile unsigned short *src = STDOOM_STCOLORS_ADDR;
+  int i;
+  if (!out16) {
+    return;
+  }
+  for (i = 0; i < 16; i++) {
+    out16[i] = src[i];
+  }
+}

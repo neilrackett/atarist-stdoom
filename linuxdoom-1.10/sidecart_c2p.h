@@ -23,7 +23,34 @@
 /* 1 = SidecarTridge DOOM Accelerator firmware detected and primed. */
 extern int c2p_md_active;
 
+/* Default render mode at first launch (one place to change the default).
+ * 0=NEAREST, 1=2x2 BAYER, 2=4x4 BAYER, 3=GREYSCALE (STDOOM_MODE_* in
+ * sidecart_md.h). Persisted to doomrc.cfg via the m_misc.c defaults[] table. */
+#define STDOOM_DEFAULT_RENDER_MODE 0
+
+/* Current render mode. Loaded from doomrc.cfg by M_LoadDefaults (before
+ * sidecart_c2p_init), saved by M_SaveDefaults on quit. */
+extern int render_mode;
+
+/* Default palette source at first launch (STDOOM_PALGEN_* in sidecart_md.h):
+ * 1 = generated (median-cut + k-means), 0 = fixed hand-tuned subset. */
+#define STDOOM_DEFAULT_PALETTE_GEN 1
+
+/* Current palette source for nearest/Bayer modes. Persisted to doomrc.cfg via
+ * the m_misc.c defaults[] table. Toggled live with the '0' key for A/B. */
+extern int palette_gen;
+
 void sidecart_c2p_init(void);
 void sidecart_c2p_install(void);
+
+/* Advance the render mode by delta (mod STDOOM_MODE_COUNT), apply it on the
+ * accelerator, refresh the 16 ST colours, and announce it via the HUD. No-op
+ * when the accelerator is inactive. Bound to the UNDO key in i_video.c. */
+void sidecart_c2p_cycle_render_mode(int delta);
+
+/* Toggle the palette source (generated <-> fixed subset) live, apply it on the
+ * accelerator, refresh the 16 ST colours, and announce via the HUD. No-op when
+ * the accelerator is inactive. Bound to the '0' key in i_video.c. */
+void sidecart_c2p_toggle_palette_gen(void);
 
 #endif /* SIDECART_C2P_H */

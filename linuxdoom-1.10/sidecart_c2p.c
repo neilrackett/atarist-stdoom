@@ -1,11 +1,14 @@
 /*
- * sidecart_c2p.c — SidecarTridge-accelerated C2P for STDOOM (Milestone 3).
+ * sidecart_c2p.c — SidecarTridge-accelerated C2P for STDOOM (Milestones 3-4).
  *
- * Holds everything sidecart-specific: the 256->16 reduction map, the RP2040
- * C2P offload screen/statusbar drawfuncs, the planar->screen blitter copy, and
- * the palette hook.  When the accelerator is detected, sidecart_c2p_install()
+ * Holds everything sidecart-specific: the RP2040 C2P offload screen/statusbar
+ * drawfuncs, the planar->screen blitter copy, the palette hook, and the runtime
+ * render-mode control.  When the accelerator is detected, sidecart_c2p_install()
  * overrides the software function pointers (declared in atari_c2p.h) with the
  * accelerated versions.
+ *
+ * Since M4 the RP2040 owns colour reduction: the host uploads the raw 768-byte
+ * DOOM palette (SET_PALETTE) and the firmware returns the 16 chosen ST colours.
  *
  * atari_c2p.c is the pure software fallback and knows nothing about the
  * sidecart; this mirrors how a clean SDL XBIOS driver swaps implementations.
@@ -16,6 +19,7 @@
 
 #include "doomdef.h"
 #include "doomstat.h"
+#include "m_argv.h"
 #include "atari_c2p.h"
 #include "sidecart_c2p.h"
 #include "sidecart_md.h"
@@ -23,8 +27,31 @@
 /* inhelpscreens is declared locally in d_main.c, not in a shared header. */
 extern boolean inhelpscreens;
 
+/* True while a HUD message is on screen (hu_stuff.c); used to repaint the top
+ * message line in the shrunk-view partial path, which otherwise skips it. */
+extern boolean HU_MessageActive(void);
+
+/* Rows of the top HUD message line to repaint in the partial path. The HU
+ * message font is a single line (~8px); 16 rows covers it with margin. */
+#define MD_MSG_STRIP_ROWS 16
+
 /* DOOM Accelerator active flag (1 = SidecarTridge firmware detected). */
 int c2p_md_active = 0;
+
+/* Current render mode (persisted to doomrc.cfg via m_misc.c defaults[]). */
+int render_mode = STDOOM_DEFAULT_RENDER_MODE;
+
+/* Current palette source (persisted to doomrc.cfg via m_misc.c defaults[]). */
+int palette_gen = STDOOM_DEFAULT_PALETTE_GEN;
+
+/* HUD labels for each render mode, indexed by STDOOM_MODE_*. */
+static char *const s_render_mode_names[STDOOM_MODE_COUNT] = {
+    "RENDER: NEAREST", "RENDER: 2x2 BAYER", "RENDER: 4x4 BAYER",
+    "RENDER: GREYSCALE"};
+
+/* HUD labels for each palette source, indexed by STDOOM_PALGEN_*. */
+static char *const s_palette_gen_names[2] = {
+    "PALETTE: FIXED", "PALETTE: GENERATED"};
 
 /*
  * STE blitter registers (fast copy path from ROM4 slot 0 to ST screen RAM).
@@ -59,7 +86,6 @@ int c2p_md_active = 0;
 #define PLANAR_ROW_BYTES 160u
 #define PLANAR_WORDS_PER_ROW 80u
 
-static unsigned char s_doom8_to_st4[256];
 static void (*s_sw_set_doom_palette)(const unsigned char *colors);
 static int s_blitter_present = -1;
 
@@ -80,25 +106,13 @@ static int blitter_present(void)
     return s_blitter_present;
 }
 
-/* Build the 256->16 nearest-ST-colour reduction map from the lorez dithering
- * weights (the dominant weight in each row is the nearest ST colour). */
-static void rebuild_doom8_to_st4_map(void)
+/* Run the software palette path (sets the 16 ST hardware registers directly). */
+static void sidecart_sw_palette(const unsigned char *colors)
 {
-    for (int i = 0; i < 256; i++)
-    {
-        unsigned char best_idx = 0;
-        unsigned char best_weight = 0;
-        const unsigned char *weights = mix_weights_lorez[i];
-        for (int j = 0; j < 16; j++)
-        {
-            if (weights[j] > best_weight)
-            {
-                best_weight = weights[j];
-                best_idx = (unsigned char)j;
-            }
-        }
-        s_doom8_to_st4[i] = best_idx;
-    }
+    if (s_sw_set_doom_palette)
+        s_sw_set_doom_palette(colors);
+    else
+        set_st_doom_palette(colors);
 }
 
 /* Disable the accelerator and restore the software function pointers. */
@@ -111,23 +125,30 @@ static void sidecart_c2p_fallback(void)
                                              : set_st_doom_palette;
 }
 
-/* Palette hook: run the software palette setup, then push the rebuilt
- * reduction map to the accelerator. */
+/* Palette hook (M4): the RP2040 owns colour reduction.  Upload the raw 768-byte
+ * DOOM palette, read back the 16 ST colours the firmware chose for the current
+ * mode, and load the hardware registers from them.  On any failure, drop to the
+ * software path. */
 static void set_st_doom_palette_md(const unsigned char *colors)
 {
-    if (s_sw_set_doom_palette)
-        s_sw_set_doom_palette(colors);
-    else
-        set_st_doom_palette(colors);
+    unsigned short stcolors[16];
 
-    if (c2p_md_active)
+    if (!c2p_md_active)
     {
-        if (sidecart_md_set_map(s_doom8_to_st4) != 0)
-        {
-            printf("MD SET_MAP failed; SW C2P\n");
-            sidecart_c2p_fallback();
-        }
+        sidecart_sw_palette(colors);
+        return;
     }
+
+    if (sidecart_md_set_palette(colors) != 0)
+    {
+        printf("MD SET_PALETTE failed; SW C2P\n");
+        sidecart_c2p_fallback();
+        sidecart_sw_palette(colors);
+        return;
+    }
+
+    sidecart_md_get_st_colors(stcolors);
+    install_palette(stcolors);
 }
 
 /*
@@ -294,6 +315,33 @@ static void c2p_screen_md(unsigned char *out, const unsigned char *in)
             }
             else
             {
+                /* The top HUD message line (y=0) sits above the 3D viewport and
+                 * is otherwise never repainted in the partial path, so an active
+                 * message (pickups, "RENDER:"/"PALETTE:") would never reach the
+                 * screen. Push that thin top strip while a message is showing,
+                 * plus a couple of frames after so the erase reaches the screen
+                 * too. Skipped when the viewport already starts at the top. */
+                static int s_msg_strip_frames;
+                if (HU_MessageActive())
+                    s_msg_strip_frames = 2;
+                if (s_msg_strip_frames > 0)
+                {
+                    s_msg_strip_frames--;
+                    if (vy > 0)
+                    {
+                        if (upload_rows(0, MD_MSG_STRIP_ROWS, in) != 0 ||
+                            sidecart_md_c2p_rect(0, 0, STDOOM_FRAME_WIDTH,
+                                                 MD_MSG_STRIP_ROWS) != 0)
+                        {
+                            c2p_screen_lorez(out, in);
+                            return;
+                        }
+                        sidecart_md_copy_planar_to_screen(
+                            (unsigned long)STDOOM_PLANAR0_ADDR, out, 0, 0,
+                            STDOOM_FRAME_WIDTH, MD_MSG_STRIP_ROWS);
+                    }
+                }
+
                 if (upload_rows((short)vy, (short)vh, in) != 0)
                 {
                     c2p_screen_lorez(out, in);
@@ -389,17 +437,39 @@ static void c2p_statusbar_md(unsigned char *out, const unsigned char *in,
  * Call once early in D_DoomMain (user mode, before I_Init). */
 void sidecart_c2p_init(void)
 {
-    rebuild_doom8_to_st4_map();
+    /* -noturbo forces the pure software path: skip detection entirely so
+     * c2p_md_active stays 0 and everything behaves exactly as if no cartridge
+     * were present (sidecart_c2p_install no-ops, UNDO->spy / HELP->gamma kept). */
+    if (M_CheckParm("-noturbo"))
+    {
+        c2p_md_active = 0;
+        printf("MD disabled (-noturbo); SW C2P\n");
+        return;
+    }
+
     c2p_md_active = sidecart_md_detect();
 
     if (c2p_md_active)
     {
         char version[64];
-        int init_rc, map_rc;
+        int init_rc, mode_rc;
         sidecart_md_result(version, sizeof(version));
         init_rc = sidecart_md_init(STDOOM_FRAME_WIDTH, STDOOM_FRAME_HEIGHT);
-        map_rc = (init_rc == 0) ? sidecart_md_set_map(s_doom8_to_st4) : -1;
-        if (init_rc != 0 || map_rc != 0)
+        /* render_mode/palette_gen were loaded from doomrc.cfg by M_LoadDefaults;
+         * clamp them in case the config holds stale/out-of-range values. The
+         * first I_SetPalette uploads the palette and populates the 16 ST
+         * colours (rebuilt for this mode + palette source). */
+        if (render_mode < 0 || render_mode >= STDOOM_MODE_COUNT)
+            render_mode = STDOOM_DEFAULT_RENDER_MODE;
+        if (palette_gen != STDOOM_PALGEN_SUBSET &&
+            palette_gen != STDOOM_PALGEN_GENERATED)
+            palette_gen = STDOOM_DEFAULT_PALETTE_GEN;
+        mode_rc = (init_rc == 0) ? sidecart_md_set_mode(render_mode) : -1;
+        /* Set the palette source before the first SET_PALETTE so the initial
+         * 16 colours are generated/selected as configured. */
+        if (mode_rc == 0)
+            mode_rc = sidecart_md_set_palgen(palette_gen);
+        if (init_rc != 0 || mode_rc != 0)
         {
             c2p_md_active = 0;
             printf("MD detected: %s\n", version);
@@ -437,4 +507,59 @@ void sidecart_c2p_install(void)
      * keypress/sound interrupt can't corrupt a command and bounce a frame to
      * the software renderer. */
     sidecart_md_set_intr_mask(1);
+}
+
+/* Advance the render mode (wraps), apply it on the firmware, refresh the 16 ST
+ * hardware colours from the firmware's new choice, and announce via the HUD.
+ * The new render_mode persists to doomrc.cfg on quit (M_SaveDefaults), so the
+ * last-used mode is restored next launch. No-op when the accelerator is
+ * inactive (so UNDO falls through to its normal key mapping). */
+void sidecart_c2p_cycle_render_mode(int delta)
+{
+    unsigned short stcolors[16];
+    int mode;
+
+    if (!c2p_md_active)
+        return;
+
+    mode = render_mode + delta;
+    /* Wrap into 0..STDOOM_MODE_COUNT-1 without relying on C's negative %. */
+    mode %= STDOOM_MODE_COUNT;
+    if (mode < 0)
+        mode += STDOOM_MODE_COUNT;
+
+    if (sidecart_md_set_mode(mode) != 0)
+        return; /* leave the current mode/colours untouched on failure */
+
+    render_mode = mode;
+    sidecart_md_get_st_colors(stcolors);
+    install_palette(stcolors);
+
+    /* Announce via DOOM's standard HUD message path (same as item pickups). */
+    players[consoleplayer].message = s_render_mode_names[mode];
+}
+
+/* Toggle the palette source (generated <-> fixed subset), apply it on the
+ * firmware, refresh the 16 ST hardware colours from the firmware's new choice,
+ * and announce via the HUD. The new palette_gen persists to doomrc.cfg on quit.
+ * No-op when the accelerator is inactive. */
+void sidecart_c2p_toggle_palette_gen(void)
+{
+    unsigned short stcolors[16];
+    int gen;
+
+    if (!c2p_md_active)
+        return;
+
+    gen = (palette_gen == STDOOM_PALGEN_GENERATED) ? STDOOM_PALGEN_SUBSET
+                                                   : STDOOM_PALGEN_GENERATED;
+
+    if (sidecart_md_set_palgen(gen) != 0)
+        return; /* leave the current source/colours untouched on failure */
+
+    palette_gen = gen;
+    sidecart_md_get_st_colors(stcolors);
+    install_palette(stcolors);
+
+    players[consoleplayer].message = s_palette_gen_names[gen];
 }

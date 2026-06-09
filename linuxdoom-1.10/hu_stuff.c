@@ -493,6 +493,14 @@ void HU_Drawer(void)
 
 }
 
+// Whether a HUD message is currently displayed (true for its timeout window).
+// Used by the accelerated C2P (sidecart_c2p.c) to repaint the top message line
+// when the 3D view is shrunk and the partial-view path skips the top of screen.
+boolean HU_MessageActive(void)
+{
+    return message_on;
+}
+
 void HU_Erase(void)
 {
 

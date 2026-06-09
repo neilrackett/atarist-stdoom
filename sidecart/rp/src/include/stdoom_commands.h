@@ -39,7 +39,24 @@
 #define CMD_STDOOM_SET_MAP 0x12
 #define CMD_STDOOM_BLIT_ROWS 0x13
 #define CMD_STDOOM_C2P 0x14
-/* 0x15..0x1F reserved for future render offload (column/span, palette FX). */
+#define CMD_STDOOM_SET_PALETTE 0x15 /* Upload 768B (256xRGB) DOOM palette (M4) */
+#define CMD_STDOOM_SET_MODE 0x16    /* d3=render mode 0..3 (M4) */
+#define CMD_STDOOM_SET_PALGEN 0x17  /* d3=palette source 0/1 (M4 Stage 3) */
+/* 0x18..0x1F reserved for future render offload (column/span, palette FX). */
+
+/* ── Render modes (M4) ──────────────────────────────────────────────────── */
+#define STDOOM_MODE_NEAREST 0
+#define STDOOM_MODE_BAYER2 1
+#define STDOOM_MODE_BAYER4 2
+#define STDOOM_MODE_GREY 3
+#define STDOOM_MODE_COUNT 4
+
+/* ── Palette source (M4 Stage 3) ────────────────────────────────────────── */
+/* Where the 16 ST colours come from for nearest/Bayer modes (greyscale always
+ * uses its own grey ramp regardless): the fixed hand-tuned DOOM subset, or a
+ * median-cut + k-means palette generated from the uploaded 768-byte palette. */
+#define STDOOM_PALGEN_SUBSET 0
+#define STDOOM_PALGEN_GENERATED 1
 
 /* PING magic — the ST sends this in d3 and expects a successful token echo. */
 #define STDOOM_PING_MAGIC 0x5354444D /* 'STDM' */
@@ -49,6 +66,13 @@
 #define STDOOM_RANDOM_TOKEN_SEED_OFFSET (STDOOM_RANDOM_TOKEN_OFFSET + 4)
 #define STDOOM_STATUS_OFFSET 0xF008
 #define STDOOM_READY_OFFSET 0xF00A
+/* 0xF010..0xF01F: diagnostic counters (see stdoom_worker.c / sidecart_md.h). */
+/* Chosen 16 ST hardware-palette words (M4), written by SET_PALETTE/SET_MODE.
+ * 16 x uint16, stored in bus order (no byte-swap) so the ST reads them directly
+ * and feeds them straight to the $FF8240 palette registers. */
+#define STDOOM_STCOLORS_OFFSET 0xF020
+#define STDOOM_STCOLORS_COUNT 16
+#define STDOOM_STCOLORS_SIZE (STDOOM_STCOLORS_COUNT * 2)
 #define STDOOM_RESULT_OFFSET 0xF100
 #define STDOOM_RESULT_MAX_SIZE 2048
 

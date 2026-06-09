@@ -169,6 +169,14 @@ void I_StartTic (void)
         } else if (scan == 0x62) { // Help key
             event.data1 = KEY_F11;
         } else if (scan == 0x61) { // Undo key
+            /* With the accelerator active, UNDO cycles the render mode (spy mode
+             * is multiplayer-only and unsupported). On key-down only; swallow
+             * the event so it never reaches the game. Falls through to F12/spy
+             * on the software path (no accelerator). */
+            if (c2p_md_active && event.type == ev_keydown) {
+                sidecart_c2p_cycle_render_mode(+1);
+                continue;
+            }
             event.data1 = KEY_F12;
         } else if (scan == 14) {
             event.data1 = KEY_BACKSPACE;
@@ -186,6 +194,13 @@ void I_StartTic (void)
             event.data1 = ' ';
         } else if (scan == 0x3a) {
             // Don't know how to send CAPSLOCK key
+            continue;
+        } else if (scan == 0x0b && c2p_md_active && event.type == ev_keydown) {
+            /* '0' toggles the accelerator palette source (generated <-> fixed
+             * subset) for live A/B quality comparison; swallow the key. '0' is
+             * not a weapon (weapons are 1-8) or movement key. Falls through to
+             * the normal '0' mapping when the accelerator is inactive. */
+            sidecart_c2p_toggle_palette_gen();
             continue;
         } else if (scan >= 0x2 && scan <= 0xd) {
             event.data1 = "1234567890-="[scan-0x2];
@@ -333,7 +348,11 @@ void I_InitGraphics(void)
      * accelerated ones if the accelerator was detected. */
     sidecart_c2p_install();
     save_palette(old_palette);
-    draw_palette_table(st_screen);
+    /* The palette grid is a software-C2P diagnostic of the 16-colour ST palette;
+     * skip it when the accelerator owns rendering (it would show the SW palette
+     * and is drawn by the SW path). */
+    if (!c2p_md_active)
+        draw_palette_table(st_screen);
     printf ("Done.\n");
     // Set cursor to home and stop blinking.
     printf("\33H\33f\n");
