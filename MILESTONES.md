@@ -306,74 +306,70 @@ end-to-end:
 
 ## Milestone 4 — richer palette + dither modes
 
-### Goal
+### Current status: complete
 
-Replace the crude fixed nearest-colour reduction with **selectable rendering
-modes** (nearest-colour, greyscale, Bayer dithering) and keep the pipeline
-interface identical regardless of which mode is active.
+Confirmed on hardware (Mega STE, 16 MHz + cache). All four render modes work
+end-to-end; palette shifts (damage/bonus/radiation) update correctly at runtime;
+settings persist to `doomrc.cfg`.
 
-### How DOOM's palette actually works
+### What was built
 
-DOOM's `PLAYPAL` lump contains **14 fixed 256-colour palettes** baked into the
-WAD: palette 0 is normal, 1–8 are damage (progressively red-shifted), 9–12 are
-bonus pickup (gold-shifted), and 13 is the radiation suit (green-shifted).
-`I_SetPalette` is called only **when the active palette index changes** — player
-takes a hit, picks something up, recovers — which is infrequent and
-event-driven, not per-frame. A guard in `st_stuff.c` ensures it is a no-op when
-the index is unchanged.
+- **`CMD_STDOOM_SET_PALETTE`** replaces `CMD_STDOOM_SET_MAP`. The host uploads
+  the raw 768-byte DOOM palette (`256 × RGB`) on every `I_SetPalette` call; the
+  RP2040 derives the 16 ST output colours and publishes them to `STDOOM_STCOLORS`
+  (`$FAF020`); the host reads them back and writes the hardware palette registers.
+- **Four render modes** selectable at runtime via UNDO key (cycles) and persisted
+  to `doomrc.cfg`:
+  - **Nearest-colour** — direct map to closest of 16 ST colours.
+  - **2×2 Bayer** — ordered dither between each pixel's two nearest ST colours.
+  - **4×4 Bayer** — same with finer 4×4 matrix.
+  - **Greyscale** — Rec.601 luma → 16-step grey ramp.
+- **Median-cut + k-means palette generation** (default): the RP2040 derives the
+  16 output colours from the uploaded palette using median-cut partitioning
+  followed by 8 Lloyd iterations with redmean perceptual distance. A fixed
+  hand-tuned subset is available as a fallback, toggled live with the `0` key.
+- **`-noturbo`** CLI flag forces the pure software path.
+- All accelerated rendering (UNDO, `0`, palette toggle) announces itself via the
+  standard HUD message path; messages are visible even in a shrunk view window.
 
-### Pipeline architecture
+### Hard-won fixes (do not regress)
 
-The host-RP2040 interface is fixed and mode-agnostic:
+- **`stdoom_displayed_channel` must use `(v >> 4) * 17`, not
+  `stdoom_convert_channel(v) * 17`.** The STE stores the "extra" colour LSB at
+  nibble bit 3 (the MSB position); multiplying the raw nibble by 17 gives a
+  completely scrambled intensity mapping (e.g. v=16 → nibble 8 → intensity 136
+  instead of 17), producing an all-purple cast on the generated palette.
+- **RP2040 SRAM budget.** The `s_planar_words[16000]` staging buffer (32 KB) must
+  NOT be reintroduced; `stdoom_pack_to_planar_rect` packs directly into
+  `s_planar_mem` (ROM-in-RAM). With M4 statics (`s_mode_lut` 4 KB etc.) the
+  budget is tight; re-adding it causes an OOM panic in `settings_init`.
+
+### Known limitations / future refinement
+
+- **Palette selection quality.** The median-cut + k-means generated palette
+  produces correct colours but the quality of the 16-colour reduction — and
+  therefore the dither output — will benefit from further tuning. Candidates:
+  - Perceptual weighting in the median-cut axis selection (currently luma-weighted
+    range {R×2, G×4, B×3}).
+  - More k-means iterations or a better seed (currently 8 Lloyd passes from the
+    median-cut means).
+  - Improved distance metric or explicit palette-shift-aware regeneration so
+    damage/radiation palettes dither as cleanly as the normal palette.
+  This is deferred to a future pass; the current output is playable and visually
+  acceptable on hardware.
+
+### Pipeline architecture (for reference)
 
 ```
 On I_SetPalette:
   CMD_STDOOM_SET_PALETTE  →  768 bytes (256 × RGB) of active DOOM palette
-                          ←  32 bytes (16 × RGB) of chosen ST output colours
-  Host writes ST hardware palette registers from the returned 16 colours.
+                          ←  32 bytes (16 × RGB) chosen ST colours at $FAF020
+  Host writes hardware palette registers from the returned 16 colours.
 
 Each frame (unchanged from M3):
   BLIT_ROWS               →  raw 8bpp chunky pixel data (64000 bytes)
-  CMD_STDOOM_C2P          →  RP2040 processes in selected mode → planar slot 0
+  CMD_STDOOM_C2P          →  RP2040 converts in selected mode → planar slot 0
 ```
-
-`CMD_STDOOM_SET_MAP` is retired. The RP2040 now owns all colour-reduction logic
-and derives whatever internal data structure its current mode needs from the raw
-RGB palette. The 16 chosen output colours are written back to a known shared
-memory location in ROM-in-RAM; the host reads them once and sets the hardware
-registers.
-
-### Rendering modes
-
-All modes take 8bpp chunky in and produce 4bpp planar out. The RP2040 selects
-the active mode via a field in `CMD_STDOOM_INIT` or a new `CMD_STDOOM_SET_MODE`
-command.
-
-- **Nearest-colour** (as M2, but now updated per `I_SetPalette`): map each pixel
-  directly to the closest of the 16 chosen ST colours.
-- **Greyscale**: convert each pixel to luminance, map to a greyscale ramp across
-  the 16 output colours.
-- **2×2 Bayer dithering**: use a 2×2 ordered dither matrix and each pixel's two
-  nearest ST colours to simulate intermediate shades spatially.
-- **4×4 Bayer dithering**: same with a 4×4 matrix for finer gradation.
-
-### Notes
-
-- `atari_c2p.c`'s existing `mix_weights_*` / Bayer tables are a useful reference
-  for the dither maths.
-- Since `I_SetPalette` fires rarely (on player state change, not per frame), the
-  768-byte palette upload and 32-byte readback are negligible overhead.
-- The shared memory location for the returned 16 ST colours needs a new slot in
-  the ROM-in-RAM map (a new offset in `stdoom_commands.h`).
-
-### M4 exit criteria
-
-- `CMD_STDOOM_SET_PALETTE` replaces `CMD_STDOOM_SET_MAP`; the RP2040 returns the
-  chosen 16 ST colours and the host applies them to the hardware registers.
-- All four rendering modes are selectable (runtime or compile-time) and visibly
-  distinct.
-- Switching DOOM palette (taking damage, picking up bonus) correctly updates the
-  ST hardware palette and the RP2040's internal colour data.
 
 ---
 

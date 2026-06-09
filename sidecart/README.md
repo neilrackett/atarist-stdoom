@@ -38,10 +38,16 @@ You'll know if the microfirmware is working because you'll see "DOOM Accelerator
   `sidecart_c2p.c` that overrides the pure-software `atari_c2p.c`. Confirmed on a
   Mega STE at 16 MHz + cache. `sidecart/tests/RECTTEST.TOS` validates the
   dirty-rect pipeline standalone.
-- **Milestone 4 (next):** dynamic 16-colour palette (median cut / greyscale) and
-  selectable dither modes (none, greyscale, 2×2/4×4 Bayer).
-- **Milestone 5:** async data processing — non-blocking C2P dispatch; the ST
-  fires C2P and returns to game logic immediately, synchronising only at vsync
+- **Milestone 4 (done):** dynamic 16-colour palette and selectable dither modes.
+  `CMD_STDOOM_SET_PALETTE` replaces `CMD_STDOOM_SET_MAP`; the RP2040 now owns all
+  colour reduction (median-cut + k-means palette generation, or a fixed hand-tuned
+  subset) and returns the chosen 16 ST colours for the host to apply directly to
+  the hardware palette registers. Four render modes switchable at runtime via UNDO
+  key: nearest-colour, 2×2 Bayer, 4×4 Bayer, greyscale. Confirmed on Mega STE at
+  16 MHz + cache. Palette selection quality will be further refined in a future
+  pass. `sidecart/tests/RNDRTEST.TOS` validates the palette pipeline standalone.
+- **Milestone 5 (next):** async data processing — non-blocking C2P dispatch; the
+  ST fires C2P and returns to game logic immediately, synchronising only at vsync
   before the planar copy. No extra memory; `sidecart_stubs.S` unchanged.
 
 Longer term, this accelerator design is intended as the model for a new (clean)
